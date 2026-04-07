@@ -69,9 +69,23 @@ int coxaRef  = 90;
 int femurRef = 90;
 int tibiaRef = 90;
 
-// Tuning deltas relative to standing reference
+// Sitting test deltas relative to standing reference
 int femurDelta = 0;
 int tibiaDelta = 0;
+
+// Rotate test deltas
+int set1FemurDelta = 0;
+int set1CoxaDelta  = 0;
+int set2FemurDelta = 0;
+int set2CoxaDelta  = 0;
+
+enum TestMode {
+  MODE_NONE,
+  MODE_SITTING_TEST,
+  MODE_ROTATE_TEST
+};
+
+TestMode currentMode = MODE_NONE;
 
 // --------------------------------------------------
 // Low-level write
@@ -126,18 +140,7 @@ void stand() {
 }
 
 // --------------------------------------------------
-// Apply current sitting-tuning pose
-//
-// Directional logic used:
-// Right Femur: downward + / upward -
-// Left  Femur: downward - / upward +
-// Right Tibia: inward - / outward +
-// Left  Tibia: inward + / outward -
-//
-// Up arrow    => femur upward
-// Down arrow  => femur downward
-// Left arrow  => tibia inward
-// Right arrow => tibia outward
+// Sitting Test pose
 // --------------------------------------------------
 void applyTuningPose() {
   // Coxa stays at standing neutral
@@ -174,42 +177,159 @@ void applyTuningPose() {
 
 void printCurrentPose() {
   Serial.println();
-  Serial.println("===== CURRENT TUNING VALUES =====");
+  Serial.println("===== SITTING TEST =====");
   Serial.print("Femur delta from stand: ");
   Serial.println(femurDelta);
   Serial.print("Tibia delta from stand: ");
   Serial.println(tibiaDelta);
 
   Serial.println("Actual commanded femur angles:");
-  Serial.print("  Left  femurs  = ");
+  Serial.print("  Left  femurs = ");
   Serial.println(femurRef + femurDelta);
-  Serial.print("  Right femurs  = ");
+  Serial.print("  Right femurs = ");
   Serial.println(femurRef - femurDelta);
 
   Serial.println("Actual commanded tibia angles:");
-  Serial.print("  Left  tibias  = ");
+  Serial.print("  Left  tibias = ");
   Serial.println(tibiaRef + tibiaDelta);
-  Serial.print("  Right tibias  = ");
+  Serial.print("  Right tibias = ");
   Serial.println(tibiaRef - tibiaDelta);
 
   Serial.println();
   Serial.println("Controls:");
-  Serial.println("  Up Arrow    -> Femur upward");
-  Serial.println("  Down Arrow  -> Femur downward");
+  Serial.println("  Up Arrow    -> Femur downward");
+  Serial.println("  Down Arrow  -> Femur upward");
   Serial.println("  Left Arrow  -> Tibia inward");
   Serial.println("  Right Arrow -> Tibia outward");
-  Serial.println("  r           -> Reset femur/tibia to standing reference");
-  Serial.println("  p           -> Print current values");
-  Serial.println("=================================");
+  Serial.println("  R           -> Reset current test");
+  Serial.println("  P           -> Print values");
+  Serial.println("  M           -> Back to menu");
+  Serial.println("========================");
   Serial.println();
 }
 
 // --------------------------------------------------
-// Wait until user types s or S
+// Rotate Test pose
+//
+// Set 1: Right Middle, Left Front, Left Back
+//   Arrows: Up/Down = femur, Left/Right = coxa
+//
+// Set 2: Left Middle, Right Front, Right Back
+//   W/S = femur, A/D = coxa
+//
+// Coxa: clockwise positive, counter-clockwise negative
 // --------------------------------------------------
-void waitForStandCommand() {
+void applyRotateTestPose() {
+  // Keep all tibias at standing reference for this test
+  servoWriteRaw(0, CH_LF_TIBIA, tibiaRef + TRIM_LF_TIBIA);
+  servoWriteRaw(0, CH_LM_TIBIA, tibiaRef + TRIM_LM_TIBIA);
+  servoWriteRaw(0, CH_LB_TIBIA, tibiaRef + TRIM_LB_TIBIA);
+
+  servoWriteRaw(1, CH_RF_TIBIA, tibiaRef + TRIM_RF_TIBIA);
+  servoWriteRaw(1, CH_RM_TIBIA, tibiaRef + TRIM_RM_TIBIA);
+  servoWriteRaw(1, CH_RB_TIBIA, tibiaRef + TRIM_RB_TIBIA);
+
+  // ---------- SET 1 ----------
+  // Right Middle, Left Front, Left Back
+
+  // Coxa
+  servoWriteRaw(1, CH_RM_COXA, coxaRef + set1CoxaDelta + TRIM_RM_COXA);
+  servoWriteRaw(0, CH_LF_COXA, coxaRef + set1CoxaDelta + TRIM_LF_COXA);
+  servoWriteRaw(0, CH_LB_COXA, coxaRef + set1CoxaDelta + TRIM_LB_COXA);
+
+  // Femur
+  // Left femur: downward negative / upward positive
+  servoWriteRaw(0, CH_LF_FEMUR, femurRef + set1FemurDelta + TRIM_LF_FEMUR);
+  servoWriteRaw(0, CH_LB_FEMUR, femurRef + set1FemurDelta + TRIM_LB_FEMUR);
+
+  // Right femur: downward positive / upward negative
+  servoWriteRaw(1, CH_RM_FEMUR, femurRef - set1FemurDelta + TRIM_RM_FEMUR);
+
+  // ---------- SET 2 ----------
+  // Left Middle, Right Front, Right Back
+
+  // Coxa
+  servoWriteRaw(0, CH_LM_COXA, coxaRef + set2CoxaDelta + TRIM_LM_COXA);
+  servoWriteRaw(1, CH_RF_COXA, coxaRef + set2CoxaDelta + TRIM_RF_COXA);
+  servoWriteRaw(1, CH_RB_COXA, coxaRef + set2CoxaDelta + TRIM_RB_COXA);
+
+  // Femur
+  // Left femur: downward negative / upward positive
+  servoWriteRaw(0, CH_LM_FEMUR, femurRef + set2FemurDelta + TRIM_LM_FEMUR);
+
+  // Right femur: downward positive / upward negative
+  servoWriteRaw(1, CH_RF_FEMUR, femurRef - set2FemurDelta + TRIM_RF_FEMUR);
+  servoWriteRaw(1, CH_RB_FEMUR, femurRef - set2FemurDelta + TRIM_RB_FEMUR);
+}
+
+void printRotatePose() {
   Serial.println();
-  Serial.println("Type 's' or 'S' in Serial Monitor to stand.");
+  Serial.println("===== ROTATE TEST =====");
+  Serial.print("Set 1 Femur Delta: ");
+  Serial.println(set1FemurDelta);
+  Serial.print("Set 1 Coxa Delta : ");
+  Serial.println(set1CoxaDelta);
+
+  Serial.print("Set 2 Femur Delta: ");
+  Serial.println(set2FemurDelta);
+  Serial.print("Set 2 Coxa Delta : ");
+  Serial.println(set2CoxaDelta);
+
+  Serial.println();
+  Serial.println("Set 1 = Right Middle, Left Front, Left Back");
+  Serial.println("  Up Arrow    -> Femur downward");
+  Serial.println("  Down Arrow  -> Femur upward");
+  Serial.println("  Left Arrow  -> Coxa counter-clockwise");
+  Serial.println("  Right Arrow -> Coxa clockwise");
+
+  Serial.println();
+  Serial.println("Set 2 = Left Middle, Right Front, Right Back");
+  Serial.println("  W -> Femur downward");
+  Serial.println("  S -> Femur upward");
+  Serial.println("  A -> Coxa counter-clockwise");
+  Serial.println("  D -> Coxa clockwise");
+
+  Serial.println();
+  Serial.println("Other:");
+  Serial.println("  R -> Reset current test");
+  Serial.println("  P -> Print values");
+  Serial.println("  M -> Back to menu");
+  Serial.println("=======================");
+  Serial.println();
+}
+
+// --------------------------------------------------
+// Reset helpers
+// --------------------------------------------------
+void resetSittingTest() {
+  femurDelta = 0;
+  tibiaDelta = 0;
+  applyTuningPose();
+}
+
+void resetRotateTest() {
+  set1FemurDelta = 0;
+  set1CoxaDelta  = 0;
+  set2FemurDelta = 0;
+  set2CoxaDelta  = 0;
+  applyRotateTestPose();
+}
+
+// --------------------------------------------------
+// Menu
+// --------------------------------------------------
+void printMenu() {
+  Serial.println();
+  Serial.println("===== TEST MENU =====");
+  Serial.println("1 -> Sitting Test");
+  Serial.println("2 -> Rotate Test");
+  Serial.println("=====================");
+  Serial.println();
+}
+
+void waitForInitialStandCommand() {
+  Serial.println();
+  Serial.println("Type 's' or 'S' to stand first.");
   Serial.println();
 
   while (true) {
@@ -217,10 +337,35 @@ void waitForStandCommand() {
       char c = Serial.read();
       if (c == 's' || c == 'S') {
         stand();
-        femurDelta = 0;
-        tibiaDelta = 0;
-        applyTuningPose();
+        Serial.println("Standing complete.");
+        return;
+      }
+    }
+    delay(10);
+  }
+}
+
+void waitForModeChoice() {
+  currentMode = MODE_NONE;
+  printMenu();
+
+  while (true) {
+    if (Serial.available()) {
+      char c = Serial.read();
+
+      if (c == '1') {
+        currentMode = MODE_SITTING_TEST;
+        resetSittingTest();
+        Serial.println("Selected: Sitting Test");
         printCurrentPose();
+        return;
+      }
+
+      if (c == '2') {
+        currentMode = MODE_ROTATE_TEST;
+        resetRotateTest();
+        Serial.println("Selected: Rotate Test");
+        printRotatePose();
         return;
       }
     }
@@ -229,23 +374,15 @@ void waitForStandCommand() {
 }
 
 // --------------------------------------------------
-// Parse arrow keys
-// Most terminals send:
-// Up    = ESC [ A
-// Down  = ESC [ B
-// Right = ESC [ C
-// Left  = ESC [ D
+// Sitting Test controls
 // --------------------------------------------------
-void handleSerialControl() {
+void handleSittingTestControl() {
   if (!Serial.available()) return;
 
   char c = Serial.read();
 
-  // simple keys
   if (c == 'r' || c == 'R') {
-    femurDelta = 0;
-    tibiaDelta = 0;
-    applyTuningPose();
+    resetSittingTest();
     printCurrentPose();
     return;
   }
@@ -255,46 +392,171 @@ void handleSerialControl() {
     return;
   }
 
-  // arrow keys
-  if (c == 27) { // ESC
+  if (c == 'm' || c == 'M') {
+    waitForModeChoice();
+    return;
+  }
+
+  // Arrow keys:
+  // Up    = ESC [ A
+  // Down  = ESC [ B
+  // Right = ESC [ C
+  // Left  = ESC [ D
+  if (c == 27) {
     while (Serial.available() < 2) {
       delay(1);
     }
 
-    char c1 = Serial.read(); // should be '['
-    char c2 = Serial.read(); // A/B/C/D
+    char c1 = Serial.read();
+    char c2 = Serial.read();
 
     if (c1 != '[') return;
 
     switch (c2) {
-      case 'A': // Up -> femur downwards
+      case 'A': // Up -> Femur downward
         femurDelta -= STEP_DEGREE;
-        applyTuningPose();
-        Serial.println("Down Arrow -> Femur downward");
-        printCurrentPose();
-        break;
-
-      case 'B': // Down -> femur upward
-        femurDelta += STEP_DEGREE;
         applyTuningPose();
         Serial.println("Up Arrow -> Femur downward");
         printCurrentPose();
         break;
 
-      case 'C': // Right -> tibia outward
-        tibiaDelta -= STEP_DEGREE;
+      case 'B': // Down -> Femur upward
+        femurDelta += STEP_DEGREE;
         applyTuningPose();
-        Serial.println("Right Arrow: Tibia outward");
+        Serial.println("Down Arrow -> Femur upward");
         printCurrentPose();
         break;
 
-      case 'D': // Left -> tibia inward
+      case 'C': // Right -> Tibia outward
+        tibiaDelta -= STEP_DEGREE;
+        applyTuningPose();
+        Serial.println("Right Arrow -> Tibia outward");
+        printCurrentPose();
+        break;
+
+      case 'D': // Left -> Tibia inward
         tibiaDelta += STEP_DEGREE;
         applyTuningPose();
-        Serial.println("Left Arrow: Tibia inward");
+        Serial.println("Left Arrow -> Tibia inward");
         printCurrentPose();
         break;
     }
+  }
+}
+
+// --------------------------------------------------
+// Rotate Test controls
+// --------------------------------------------------
+void handleRotateTestControl() {
+  if (!Serial.available()) return;
+
+  char c = Serial.read();
+
+  if (c == 'r' || c == 'R') {
+    resetRotateTest();
+    printRotatePose();
+    return;
+  }
+
+  if (c == 'p' || c == 'P') {
+    printRotatePose();
+    return;
+  }
+
+  if (c == 'm' || c == 'M') {
+    waitForModeChoice();
+    return;
+  }
+
+  // Set 2: W/S = femur, A/D = coxa
+  if (c == 'w' || c == 'W') {
+    set2FemurDelta -= STEP_DEGREE; // downward
+    applyRotateTestPose();
+    Serial.println("Set 2 -> Femur downward");
+    printRotatePose();
+    return;
+  }
+
+  if (c == 's' || c == 'S') {
+    set2FemurDelta += STEP_DEGREE; // upward
+    applyRotateTestPose();
+    Serial.println("Set 2 -> Femur upward");
+    printRotatePose();
+    return;
+  }
+
+  if (c == 'a' || c == 'A') {
+    set2CoxaDelta -= STEP_DEGREE; // counter-clockwise
+    applyRotateTestPose();
+    Serial.println("Set 2 -> Coxa counter-clockwise");
+    printRotatePose();
+    return;
+  }
+
+  if (c == 'd' || c == 'D') {
+    set2CoxaDelta += STEP_DEGREE; // clockwise
+    applyRotateTestPose();
+    Serial.println("Set 2 -> Coxa clockwise");
+    printRotatePose();
+    return;
+  }
+
+  // Set 1: arrows
+  if (c == 27) {
+    while (Serial.available() < 2) {
+      delay(1);
+    }
+
+    char c1 = Serial.read();
+    char c2 = Serial.read();
+
+    if (c1 != '[') return;
+
+    switch (c2) {
+      case 'A': // Up -> Femur downward
+      set1FemurDelta += STEP_DEGREE;
+      applyRotateTestPose();
+      Serial.println("Set 1 -> Femur upward");
+      printRotatePose();
+      break;
+
+      case 'B': // Down -> Femur upward
+        set1FemurDelta -= STEP_DEGREE;
+        applyRotateTestPose();
+        Serial.println("Set 1 -> Femur downward");
+        printRotatePose();
+        break;
+        set1FemurDelta += STEP_DEGREE;
+        applyRotateTestPose();
+        Serial.println("Set 1 -> Femur upward");
+        printRotatePose();
+        break;
+
+      case 'C': // Right -> Coxa clockwise
+        set1CoxaDelta += STEP_DEGREE;
+        applyRotateTestPose();
+        Serial.println("Set 1 -> Coxa clockwise");
+        printRotatePose();
+        break;
+
+      case 'D': // Left -> Coxa counter-clockwise
+        set1CoxaDelta -= STEP_DEGREE;
+        applyRotateTestPose();
+        Serial.println("Set 1 -> Coxa counter-clockwise");
+        printRotatePose();
+        break;
+    }
+  }
+}
+
+// --------------------------------------------------
+// Main serial dispatcher
+// --------------------------------------------------
+void handleSerialControl() {
+  if (currentMode == MODE_SITTING_TEST) {
+    handleSittingTestControl();
+  } else if (currentMode == MODE_ROTATE_TEST) {
+    handleRotateTestControl();
   }
 }
 
@@ -311,7 +573,8 @@ void setup() {
   servoDriver_1.setOscillatorFrequency(27000000);
   servoDriver_1.setPWMFreq(SERVO_FREQ);
 
-  waitForStandCommand();
+  waitForInitialStandCommand();
+  waitForModeChoice();
 }
 
 void loop() {
