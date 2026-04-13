@@ -106,13 +106,13 @@ void setRotateLoopTargetsLeft(int phase) {
     loopSet1FemurTarget = 15;
     loopSet1CoxaTarget = 30;
     loopSet2FemurTarget = 0;
-    loopSet2CoxaTarget = 0;
+    loopSet2CoxaTarget = -30;
     break;
 
   case 3: // Step 3
     // S2 coxa back to 0, keep S1 loaded
     loopSet1FemurTarget = 15;
-    loopSet1CoxaTarget = -30;
+    loopSet1CoxaTarget = 0;
     loopSet2FemurTarget = 0;
     loopSet2CoxaTarget = 0;
     break;
@@ -120,25 +120,10 @@ void setRotateLoopTargetsLeft(int phase) {
   case 4: // Step 4
     // Lift S1 and swing it opposite
     loopSet1FemurTarget = 0;
-    loopSet1CoxaTarget = -30;
-    loopSet2FemurTarget = 15;
+    loopSet1CoxaTarget = 0;
+    loopSet2FemurTarget = 0;
     loopSet2CoxaTarget = 0;
     break;
-
-  case 5:
-    // Bring S2 forward while S1 still lifted
-    loopSet1FemurTarget = 0;
-    loopSet1CoxaTarget = 0;
-    loopSet2FemurTarget = 15;
-    loopSet2CoxaTarget = 30;
-    break;
-    /*
-        case 6:
-          loopSet1FemurTarget = 0;
-          loopSet1CoxaTarget  = 30;
-          loopSet2FemurTarget =33 15;
-          loopSet2CoxaTarget  = 0;
-          break;*/
   }
 }
 
@@ -152,32 +137,32 @@ void setRotateLoopTargetsRight(int phase) {
     loopSet2CoxaTarget = 0;
     break;
 
-  case 1:
+  case 1: 
     loopSet1FemurTarget = 0;
     loopSet1CoxaTarget = -30;
     loopSet2FemurTarget = 15;
     loopSet2CoxaTarget = 30;
     break;
 
-  case 2:
-    loopSet1FemurTarget = 0;
+  case 2: 
+    loopSet1FemurTarget = 15;
     loopSet1CoxaTarget = -30;
     loopSet2FemurTarget = 0;
-    loopSet2CoxaTarget = 0;
+    loopSet2CoxaTarget = 30;
     break;
 
-  case 3:
+  case 3: 
     loopSet1FemurTarget = 15;
-    loopSet1CoxaTarget = 30;
+    loopSet1CoxaTarget = 0;
     loopSet2FemurTarget = 0;
     loopSet2CoxaTarget = 0;
     break;
 
-  case 4:
-    loopSet1FemurTarget = 15;
-    loopSet1CoxaTarget = 30;
+  case 4: 
+    loopSet1FemurTarget = 0;
+    loopSet1CoxaTarget = 0;
     loopSet2FemurTarget = 0;
-    loopSet2CoxaTarget = -30;
+    loopSet2CoxaTarget = 0;
     break;
   }
 }
