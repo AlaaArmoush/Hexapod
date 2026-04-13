@@ -4,6 +4,7 @@
 #include "sitting_test.h"
 #include "rotate_test.h"
 #include "rotate_loop_test.h"
+#include "ik.h"
 
 TestMode currentMode = MODE_NONE;
 
@@ -29,7 +30,8 @@ void waitForInitialStandCommand() {
     if (Serial.available()) {
       char c = Serial.read();
       if (c == 's' || c == 'S') {
-        stand();
+       // stand();
+       ikStand();
         Serial.println("Standing complete.");
         return;
       }
