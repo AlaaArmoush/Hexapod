@@ -1,0 +1,10 @@
+#pragma once
+
+enum TestMode {
+  MODE_NONE,
+  MODE_SITTING_TEST,
+  MODE_ROTATE_TEST,
+  MODE_ROTATE_LOOP_TEST
+};
+
+enum LoopDirection { LOOP_STOPPED, LOOP_LEFT, LOOP_RIGHT };
