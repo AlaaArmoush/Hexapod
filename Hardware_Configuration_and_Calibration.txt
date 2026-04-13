@@ -1,0 +1,46 @@
+Address 0x40 (Left Side)
+--------------------------
+Left Front:
+  Coxa:  15 | Trim:  12
+  Femur: 14 | Trim:   3
+  Tibia: 13 | Trim:   8
+
+Left Middle:
+  Coxa:  11 | Trim:  16
+  Femur: 10 | Trim:   4
+  Tibia:  9 | Trim:  -5
+
+Left Back:
+  Coxa:   7 | Trim:  12
+  Femur:  6 | Trim:   3
+  Tibia:  5 | Trim:  10
+  
+
+Address 0x41 (Right Side)
+--------------------------
+Right Front:
+  Coxa:   0 | Trim:  12
+  Femur:  1 | Trim:  -2
+  Tibia:  2 | Trim:   3
+
+Right Middle:
+  Coxa:   4 | Trim:  13
+  Femur:  5 | Trim:  -1
+  Tibia:  6 | Trim:   7
+
+Right Back:
+  Coxa:  15 | Trim:  15
+  Femur: 14 | Trim:  12
+  Tibia: 13 | Trim:   9
+
+----------------------------------------
+Directional Logic Reference
+(negative means toward 0, while positive means toward 180)
+----------------------------------------
+Right Tibia ---> inward negative / outward positive 
+Right Femur ---> downward positive / upward negative
+Right Coxa  ---> clockwise positive
+
+Left Tibia  ---> inward positive / outward negative
+Left Femur  ---> downward negative / upward positive
+Left Coxa   ---> clockwise positive
