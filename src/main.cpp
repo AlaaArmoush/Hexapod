@@ -30,8 +30,8 @@ void waitForInitialStandCommand() {
     if (Serial.available()) {
       char c = Serial.read();
       if (c == 's' || c == 'S') {
-       // stand();
-       ikStand();
+       stand();
+       //ikStand();
         Serial.println("Standing complete.");
         return;
       }

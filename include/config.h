@@ -66,6 +66,6 @@
 #define TRIM_RM_FEMUR -1
 #define TRIM_RM_TIBIA 7
 
-#define TRIM_RB_COXA 15
+#define TRIM_RB_COXA 13
 #define TRIM_RB_FEMUR 12
 #define TRIM_RB_TIBIA 9

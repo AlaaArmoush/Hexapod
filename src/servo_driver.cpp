@@ -15,9 +15,9 @@ void servoWriteRaw(uint8_t board, uint8_t ch, int angle) {
   angle = constrain(angle, 0, 180);
   int pwm = SERVO_BASELINE + angle * 2;
 
-  if (board == 0)
+ if (board == 0)
     servoDriver_0.setPWM(ch, 0, pwm);
-  else
+ else
     servoDriver_1.setPWM(ch, 0, pwm);
 }
 
