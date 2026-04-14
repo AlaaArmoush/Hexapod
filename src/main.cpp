@@ -5,18 +5,17 @@
 #include "rotate_test.h"
 #include "rotate_loop_test.h"
 #include "ik.h"
+#include "body_motion_test.h"
 
 TestMode currentMode = MODE_NONE;
 
-// --------------------------------------------------
-// Menu
-// --------------------------------------------------
 void printMenu() {
   Serial.println();
   Serial.println("===== TEST MENU =====");
   Serial.println("1 -> Sitting Test (Manual)");
   Serial.println("2 -> Rotate Test (Manual)");
   Serial.println("3 -> Rotate Loop Test (Auto)");
+  Serial.println("4 -> Body Motion Test (IK)");  // <-- ADD
   Serial.println("=====================");
   Serial.println();
 }
@@ -30,8 +29,8 @@ void waitForInitialStandCommand() {
     if (Serial.available()) {
       char c = Serial.read();
       if (c == 's' || c == 'S') {
-       stand();
-       //ikStand();
+        //stand();
+        ikStand();
         Serial.println("Standing complete.");
         return;
       }
@@ -71,19 +70,24 @@ void waitForModeChoice() {
         printRotateLoopPose();
         return;
       }
+
+      if (c == '4') {                                  // <-- ADD
+        currentMode = MODE_BODY_MOTION_TEST;
+        resetBodyMotionTest();
+        Serial.println("Selected: Body Motion Test (IK)");
+        printBodyMotionPose();
+        return;
+      }
     }
     delay(10);
   }
 }
 
 void handleSerialControl() {
-  if (currentMode == MODE_SITTING_TEST) {
-    handleSittingTestControl();
-  } else if (currentMode == MODE_ROTATE_TEST) {
-    handleRotateTestControl();
-  } else if (currentMode == MODE_ROTATE_LOOP_TEST) {
-    handleRotateLoopTestControl();
-  }
+  if      (currentMode == MODE_SITTING_TEST)      handleSittingTestControl();
+  else if (currentMode == MODE_ROTATE_TEST)       handleRotateTestControl();
+  else if (currentMode == MODE_ROTATE_LOOP_TEST)  handleRotateLoopTestControl();
+  else if (currentMode == MODE_BODY_MOTION_TEST)  handleBodyMotionTestControl(); // <-- ADD
 }
 
 void setup() {
