@@ -6,6 +6,7 @@
 #include "rotate_loop_test.h"
 #include "ik.h"
 #include "body_motion_test.h"
+#include "tripod_gait.h"
 
 TestMode currentMode = MODE_NONE;
 
@@ -15,7 +16,8 @@ void printMenu() {
   Serial.println("1 -> Sitting Test (Manual)");
   Serial.println("2 -> Rotate Test (Manual)");
   Serial.println("3 -> Rotate Loop Test (Auto)");
-  Serial.println("4 -> Body Motion Test (IK)");  // <-- ADD
+  Serial.println("4 -> Body Motion Test (IK)");
+  Serial.println("5 -> Tripod Gait (IK)");
   Serial.println("=====================");
   Serial.println();
 }
@@ -29,7 +31,7 @@ void waitForInitialStandCommand() {
     if (Serial.available()) {
       char c = Serial.read();
       if (c == 's' || c == 'S') {
-        //stand();
+       // stand();
         ikStand();
         Serial.println("Standing complete.");
         return;
@@ -71,11 +73,19 @@ void waitForModeChoice() {
         return;
       }
 
-      if (c == '4') {                                  // <-- ADD
+      if (c == '4') {
         currentMode = MODE_BODY_MOTION_TEST;
         resetBodyMotionTest();
         Serial.println("Selected: Body Motion Test (IK)");
         printBodyMotionPose();
+        return;
+      }
+
+      if (c == '5') {
+        currentMode = MODE_TRIPOD_GAIT;
+        resetTripodGait();
+        Serial.println("Selected: Tripod Gait (IK)");
+        printTripodGaitState();
         return;
       }
     }
@@ -87,7 +97,8 @@ void handleSerialControl() {
   if      (currentMode == MODE_SITTING_TEST)      handleSittingTestControl();
   else if (currentMode == MODE_ROTATE_TEST)       handleRotateTestControl();
   else if (currentMode == MODE_ROTATE_LOOP_TEST)  handleRotateLoopTestControl();
-  else if (currentMode == MODE_BODY_MOTION_TEST)  handleBodyMotionTestControl(); // <-- ADD
+  else if (currentMode == MODE_BODY_MOTION_TEST)  handleBodyMotionTestControl();
+  else if (currentMode == MODE_TRIPOD_GAIT)       handleTripodGaitControl();
 }
 
 void setup() {
