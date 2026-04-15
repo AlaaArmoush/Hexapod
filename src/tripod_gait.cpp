@@ -22,6 +22,9 @@ float gaitStepHeight = 25.0f;   // mm (positive = foot lifts up)
 float gaitPhaseStep  = 0.02f;   // phase advance per update (1.0 = full half-cycle done)
                                  // at LOOP_UPDATE_MS=5ms → full step ≈ 50 updates → 250ms
 
+float gaitDirX = 1.0f;
+float gaitDirY = 0.0f;
+
 // -----------------------------------------
 // Internal state
 // -----------------------------------------
@@ -45,6 +48,7 @@ static bool isGroupA(int legIndex) {
     return false;
 }
 
+
 // -----------------------------------------
 // Core gait update — called every loop tick
 // -----------------------------------------
@@ -54,6 +58,11 @@ void updateTripodGait() {
     unsigned long now = millis();
     if (now - lastGaitUpdate < GAIT_UPDATE_MS) return;
     lastGaitUpdate = now;
+
+    // Normalize direction vector
+    float mag = sqrtf(gaitDirX * gaitDirX + gaitDirY * gaitDirY);
+    float nx = (mag > 0.001f) ? gaitDirX / mag : 1.0f;
+    float ny = (mag > 0.001f) ? gaitDirY / mag : 0.0f;
 
     // Advance phase
     gaitPhase += gaitPhaseStep;
@@ -66,20 +75,24 @@ void updateTripodGait() {
     for (int i = 0; i < 6; i++) {
         bool isSwing = (liftGroup == 0) ? isGroupA(i) : !isGroupA(i);
 
-        float footX, footZ;
+        float scalar;  // +1 at start, -1 at end for swing; opposite for stance
+        float footZ;
 
         if (isSwing) {
-            // Swing: foot travels from +stepLength → -stepLength (plant ahead)
-            footX = lerpf(+gaitStepLength, -gaitStepLength, gaitPhase);
-            // Sine arc for smooth lift: 0 at start/end, peak at mid-swing
-            footZ = sinf(gaitPhase * M_PI) * gaitStepHeight;
+            // Foot swings from +stepLength ahead → plants -stepLength behind
+            scalar = lerpf(+1.0f, -1.0f, gaitPhase);
+            footZ  = sinf(gaitPhase * M_PI) * gaitStepHeight;
         } else {
-            // Stance: foot travels from -stepLength → +stepLength (body pushes forward)
-            footX = lerpf(-gaitStepLength, +gaitStepLength, gaitPhase);
-            footZ = 0.0f;  // foot stays on ground
+            // Foot pushes body: from -stepLength → +stepLength
+            scalar = lerpf(-1.0f, +1.0f, gaitPhase);
+            footZ  = 0.0f;
         }
 
-        legIK(i, footX, 0.0f, footZ);
+        // Apply directional vector to the step length
+        float footX = nx * scalar * gaitStepLength;
+        float footY = ny * scalar * gaitStepLength;
+
+        legIK(i, footX, footY, footZ);
     }
 }
 
@@ -90,7 +103,8 @@ void resetTripodGait() {
     gaitRunning = false;
     gaitPhase   = 0.0f;
     liftGroup   = 0;
-    // Return all feet to neutral standing
+    gaitDirX    = 1.0f;
+    gaitDirY    = 0.0f;
     for (int i = 0; i < 6; i++) {
         legIK(i, 0.0f, 0.0f, 0.0f);
     }
@@ -115,25 +129,30 @@ void printTripodGaitState() {
     Serial.println();
     Serial.println("===== TRIPOD GAIT =====");
     Serial.print("Running     : "); Serial.println(gaitRunning ? "YES" : "NO");
-    Serial.print("Lift group  : "); Serial.println(liftGroup == 0 ? "A (LF, RM, RB)" : "B (LM, LB, RF)");
+    Serial.print("Lift group  : "); Serial.println(liftGroup == 0 ? "A (LF,RM,LB)" : "B (LM,RB,RF)");
     Serial.print("Phase       : "); Serial.println(gaitPhase, 2);
+    Serial.print("Direction X : "); Serial.println(gaitDirX, 2);
+    Serial.print("Direction Y : "); Serial.println(gaitDirY, 2);
     Serial.print("Step length : "); Serial.print(gaitStepLength); Serial.println(" mm");
     Serial.print("Step height : "); Serial.print(gaitStepHeight); Serial.println(" mm");
-    Serial.print("Speed (step): "); Serial.println(gaitPhaseStep, 3);
+    Serial.print("Speed       : "); Serial.println(gaitPhaseStep, 3);
     Serial.println();
-    Serial.println("Controls:");
-    Serial.println("  G       -> Start gait");
-    Serial.println("  X       -> Stop gait");
-    Serial.println("  +/-     -> Step length up/down (5mm)");
-    Serial.println("  W/S     -> Step height up/down (5mm)");
-    Serial.println("  Up/Down -> Speed up/down");
-    Serial.println("  R       -> Reset");
-    Serial.println("  P       -> Print state");
-    Serial.println("  M       -> Back to menu");
+    Serial.println("Controls (while gait runs):");
+    Serial.println("  G           -> Start gait");
+    Serial.println("  X           -> Stop gait");
+    Serial.println("  Arrow Up    -> Direction: forward  (+X)");
+    Serial.println("  Arrow Down  -> Direction: backward (-X)");
+    Serial.println("  Arrow Left  -> Direction: left     (+Y)");
+    Serial.println("  Arrow Right -> Direction: right    (-Y)");
+    Serial.println("  W / S       -> Step height up / down (5mm)");
+    Serial.println("  + / -       -> Step length up / down (5mm)");
+    Serial.println("  F / V       -> Speed up / down");
+    Serial.println("  R           -> Reset");
+    Serial.println("  P           -> Print state");
+    Serial.println("  M           -> Back to menu");
     Serial.println("=======================");
     Serial.println();
 }
-
 void handleTripodGaitControl() {
     // Always run gait update regardless of serial input
     updateTripodGait();
@@ -141,34 +160,12 @@ void handleTripodGaitControl() {
     if (!Serial.available()) return;
     char c = Serial.read();
 
-    if (c == 'g' || c == 'G') {
-        startTripodGait();
-        Serial.println("Gait STARTED");
-        return;
-    }
+    if (c == 'g' || c == 'G') { startTripodGait(); Serial.println("Gait STARTED"); return; }
+    if (c == 'x' || c == 'X') { stopTripodGait();  Serial.println("Gait STOPPED"); return; }
 
-    if (c == 'x' || c == 'X') {
-        stopTripodGait();
-        Serial.println("Gait STOPPED");
-        return;
-    }
-
-    if (c == 'r' || c == 'R') {
-        resetTripodGait();
-        printTripodGaitState();
-        return;
-    }
-
-    if (c == 'p' || c == 'P') {
-        printTripodGaitState();
-        return;
-    }
-
-    if (c == 'm' || c == 'M') {
-        resetTripodGait();
-        waitForModeChoice();
-        return;
-    }
+    if (c == 'r' || c == 'R') { resetTripodGait(); printTripodGaitState(); return; }
+    if (c == 'p' || c == 'P') { printTripodGaitState(); return; }
+    if (c == 'm' || c == 'M') { resetTripodGait(); waitForModeChoice(); return; }
 
     // Step length
     if (c == '+' || c == '=') {
@@ -176,7 +173,6 @@ void handleTripodGaitControl() {
         Serial.print("Step length: "); Serial.println(gaitStepLength);
         return;
     }
-
     if (c == '-') {
         gaitStepLength = max(5.0f, gaitStepLength - 5.0f);
         Serial.print("Step length: "); Serial.println(gaitStepLength);
@@ -189,26 +185,36 @@ void handleTripodGaitControl() {
         Serial.print("Step height: "); Serial.println(gaitStepHeight);
         return;
     }
-
     if (c == 's' || c == 'S') {
         gaitStepHeight = max(5.0f, gaitStepHeight - 5.0f);
         Serial.print("Step height: "); Serial.println(gaitStepHeight);
         return;
     }
 
-    // Speed (phase step size)
+    // Speed
+    if (c == 'f' || c == 'F') {
+        gaitPhaseStep = min(0.1f, gaitPhaseStep + 0.005f);
+        Serial.print("Speed: "); Serial.println(gaitPhaseStep, 3);
+        return;
+    }
+    if (c == 'v' || c == 'V') {
+        gaitPhaseStep = max(0.005f, gaitPhaseStep - 0.005f);
+        Serial.print("Speed: "); Serial.println(gaitPhaseStep, 3);
+        return;
+    }
+
+    // Direction via arrow keys
     if (c == 27) {
         while (Serial.available() < 2) delay(1);
         char c1 = Serial.read();
         char c2 = Serial.read();
         if (c1 != '[') return;
 
-        if (c2 == 'A') {  // Up = faster
-            gaitPhaseStep = min(0.1f, gaitPhaseStep + 0.005f);
-            Serial.print("Speed (phaseStep): "); Serial.println(gaitPhaseStep, 3);
-        } else if (c2 == 'B') {  // Down = slower
-            gaitPhaseStep = max(0.005f, gaitPhaseStep - 0.005f);
-            Serial.print("Speed (phaseStep): "); Serial.println(gaitPhaseStep, 3);
+        switch (c2) {
+            case 'A': gaitDirX =  1.0f; gaitDirY =  0.0f; Serial.println("Dir: FORWARD");  break;
+            case 'B': gaitDirX = -1.0f; gaitDirY =  0.0f; Serial.println("Dir: BACKWARD"); break;
+            case 'C': gaitDirX =  0.0f; gaitDirY =  1.0f; Serial.println("Dir: LEFT");     break;
+            case 'D': gaitDirX =  0.0f; gaitDirY = -1.0f; Serial.println("Dir: RIGHT");    break;
         }
     }
 }
