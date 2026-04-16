@@ -93,58 +93,58 @@ void legIK(int legIndex, float target_x, float target_y, float target_z) {
 
     // --- Step 3: coxa angle ---
     // atan2 gives the angle in the local XY plane.
-    // At neutral lx=LEG_ZERO_X, ly=0 → atan2(0, LEG_ZERO_X)=0 → angle_coxa=90°
-    float angle_coxa = atan2f(ly, lx) * RAD_TO_DEG + 90.0f;
+    // At neutral lx=LEG_ZERO_X, ly=0 → atan2(0, LEG_ZERO_X)=0 → servoJ1AngleDeg=90°
+    float servoJ1AngleDeg = atan2f(ly, lx) * RAD_TO_DEG + 90.0f;
 
     // --- Step 4: femur + tibia (law of cosines in the reach-Z plane) ---
     // Horizontal distance from coxa pivot to foot, minus coxa segment length
-    float reach = sqrtf(lx*lx + ly*ly) - LENGTH_COXA;
+    float y_j2_plane = sqrtf(lx*lx + ly*ly) - LENGTH_COXA;
 
     // Straight-line distance from femur pivot to foot
-    float D = sqrtf(reach*reach + lz*lz);
+    float L = sqrtf(y_j2_plane*y_j2_plane + lz*lz);
 
     // Clamp D to reachable range to avoid NaN
-    float maxD = LENGTH_FEMUR + LENGTH_TIBIA - 0.1f;
-    if (D > maxD) D = maxD;
+    float maxL = LENGTH_FEMUR + LENGTH_TIBIA - 0.1f;
+    if (L > maxL) L = maxL;
 
     // Angle of the line from femur pivot to foot (below horizontal = negative)
-    float phi = atan2f(lz, reach) * RAD_TO_DEG;  // negative when foot is below
+    float A_signed_deg = atan2f(lz, y_j2_plane) * RAD_TO_DEG;  // negative when foot is below
 
     // Law of cosines: angle at femur pivot inside the femur-tibia triangle
-    float cosFemurAngle = (D*D + LENGTH_FEMUR*LENGTH_FEMUR - LENGTH_TIBIA*LENGTH_TIBIA)
-                          / (2.0f * D * LENGTH_FEMUR);
-    float femurInner = safeAcos(cosFemurAngle) * RAD_TO_DEG;
+    float cosB = (L*L + LENGTH_FEMUR*LENGTH_FEMUR - LENGTH_TIBIA*LENGTH_TIBIA)
+                          / (2.0f * L * LENGTH_FEMUR);
+    float B_deg = safeAcos(cosB) * RAD_TO_DEG;
 
     // Law of cosines: angle at tibia pivot
-    float cosTibiaAngle = (LENGTH_FEMUR*LENGTH_FEMUR + LENGTH_TIBIA*LENGTH_TIBIA - D*D)
+    float cosJ3 = (LENGTH_FEMUR*LENGTH_FEMUR + LENGTH_TIBIA*LENGTH_TIBIA - L*L)
                           / (2.0f * LENGTH_FEMUR * LENGTH_TIBIA);
-    float tibiaInner = safeAcos(cosTibiaAngle) * RAD_TO_DEG;
+    float j3_deg = safeAcos(cosJ3) * RAD_TO_DEG;
 
     // --- Step 5: map to servo angles applying mirror convention ---
-    int angle_femur, angle_tibia;
+    int servoJ2AngleDeg, servoJ3AngleDeg;
 
     if (leg.mirrored) {
         // Left side: femur upward = +delta from 90
-        // phi is negative when foot is below pivot (normal standing) →
-        // (phi + femurInner) brings femur to the correct angle
-        // At neutral: phi≈-56°, femurInner≈56° → sum≈0 → servo at 90° ✓
-        angle_femur = (int)(phi + femurInner) + 90;
-        angle_tibia = (int)tibiaInner;          // 0° = straight, grows as leg bends
+        // A_signed_deg is negative when foot is below pivot (normal standing) →
+        // (A_signed_deg + B_deg) brings femur to the correct angle
+        // At neutral: A_signed_deg≈-56°, B_deg≈56° → sum≈0 → servo at 90° ✓
+        servoJ2AngleDeg = (int)(A_signed_deg + B_deg) + 90;
+        servoJ3AngleDeg = (int)j3_deg;          // 0° = straight, grows as leg bends
     } else {
         // Right side: femur upward = -delta from 90
-        angle_femur = (int)(phi + femurInner) * -1 + 90;
-        angle_tibia = 180 - (int)tibiaInner;
+        servoJ2AngleDeg = (int)(A_signed_deg + B_deg) * -1 + 90;
+        servoJ3AngleDeg = 180 - (int)j3_deg;
     }
 
     // Clamp to safe servo range
-    angle_coxa  = clampf(angle_coxa,  0, 180);
-    angle_femur = (int)clampf((float)angle_femur, 0, 180);
-    angle_tibia = (int)clampf((float)angle_tibia, 0, 180);
+    servoJ1AngleDeg  = clampf(servoJ1AngleDeg,  0, 180);
+    servoJ2AngleDeg = (int)clampf((float)servoJ2AngleDeg, 0, 180);
+    servoJ3AngleDeg = (int)clampf((float)servoJ3AngleDeg, 0, 180);
 
     // --- Write to hardware ---
-    servoWriteRaw(leg.board_coxa,  leg.ch_coxa,  (int)angle_coxa  + leg.trim_coxa);
-    servoWriteRaw(leg.board_femur, leg.ch_femur, angle_femur       + leg.trim_femur);
-    servoWriteRaw(leg.board_tibia, leg.ch_tibia, angle_tibia       + leg.trim_tibia);
+    servoWriteRaw(leg.board_coxa,  leg.ch_coxa,  (int)servoJ1AngleDeg  + leg.trim_coxa);
+    servoWriteRaw(leg.board_femur, leg.ch_femur, servoJ2AngleDeg       + leg.trim_femur);
+    servoWriteRaw(leg.board_tibia, leg.ch_tibia, servoJ3AngleDeg       + leg.trim_tibia);
 }
 
 // -----------------------------------------
