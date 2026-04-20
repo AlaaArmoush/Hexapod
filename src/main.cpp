@@ -7,6 +7,7 @@
 #include "ik.h"
 #include "body_motion_test.h"
 #include "tripod_gait.h"
+#include "wave.h"
 
 TestMode currentMode = MODE_NONE;
 
@@ -18,6 +19,7 @@ void printMenu() {
   Serial.println("3 -> Rotate Loop Test (Auto)");
   Serial.println("4 -> Body Motion Test (IK)");
   Serial.println("5 -> Tripod Gait (IK)");
+  Serial.println("6 -> Wave");
   Serial.println("=====================");
   Serial.println();
 }
@@ -88,6 +90,13 @@ void waitForModeChoice() {
         printTripodGaitState();
         return;
       }
+
+      if (c == '6') {
+        currentMode = MODE_WAVE;
+        Serial.println("Selected: Wave");
+        printWaveState();
+        return;
+      }
     }
     delay(10);
   }
@@ -99,6 +108,7 @@ void handleSerialControl() {
   else if (currentMode == MODE_ROTATE_LOOP_TEST)  handleRotateLoopTestControl();
   else if (currentMode == MODE_BODY_MOTION_TEST)  handleBodyMotionTestControl();
   else if (currentMode == MODE_TRIPOD_GAIT)       handleTripodGaitControl();
+  else if (currentMode == MODE_WAVE)              handleWaveControl();
 }
 
 void setup() {
