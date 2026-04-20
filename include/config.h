@@ -11,7 +11,7 @@
 // Smooth loop tuning
 #define LOOP_INTERP_STEP 1 // degrees per update
 #define LOOP_UPDATE_MS 5  // update interval
-#define LOOP_HOLD_MS 120   // hold after reaching each phase
+#define LOOP_HOLD_MS 40   // hold after reaching each phase
 
 // -----------------------------------------
 // Board 0x40 — LEFT SIDE
