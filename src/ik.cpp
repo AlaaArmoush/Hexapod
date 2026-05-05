@@ -73,7 +73,9 @@ static float safeAcos(float v) {
 //  4. Collapse XY reach into a scalar, solve femur+tibia via law of cosines
 //  5. Apply mirror flip if needed, compute servo deltas, write hardware
 // -----------------------------------------
-void legIK(int legIndex, float target_x, float target_y, float target_z) {
+IKResult solveLegIK(int legIndex, float target_x, float target_y, float target_z, IKSolution& out) {
+    if (legIndex < 0 || legIndex >= 6) return IK_INVALID_LEG;
+
     const LegDesc& leg = LEGS[legIndex];
 
     // --- Step 1: rotate into leg-local frame ---
@@ -141,10 +143,20 @@ void legIK(int legIndex, float target_x, float target_y, float target_z) {
     servoJ2AngleDeg = (int)clampf((float)servoJ2AngleDeg, 0, 180);
     servoJ3AngleDeg = (int)clampf((float)servoJ3AngleDeg, 0, 180);
 
-    // --- Write to hardware ---
-    servoWriteRaw(leg.board_coxa,  leg.ch_coxa,  (int)servoJ1AngleDeg  + leg.trim_coxa);
-    servoWriteRaw(leg.board_femur, leg.ch_femur, servoJ2AngleDeg       + leg.trim_femur);
-    servoWriteRaw(leg.board_tibia, leg.ch_tibia, servoJ3AngleDeg       + leg.trim_tibia);
+    out.coxa = (int)servoJ1AngleDeg;
+    out.femur = servoJ2AngleDeg;
+    out.tibia = servoJ3AngleDeg;
+    return IK_OK;
+}
+
+void legIK(int legIndex, float target_x, float target_y, float target_z) {
+    IKSolution solution;
+    if (solveLegIK(legIndex, target_x, target_y, target_z, solution) != IK_OK) return;
+
+    const LegDesc& leg = LEGS[legIndex];
+    servoWriteRaw(leg.board_coxa,  leg.ch_coxa,  solution.coxa  + leg.trim_coxa);
+    servoWriteRaw(leg.board_femur, leg.ch_femur, solution.femur + leg.trim_femur);
+    servoWriteRaw(leg.board_tibia, leg.ch_tibia, solution.tibia + leg.trim_tibia);
 }
 
 // -----------------------------------------
