@@ -13,6 +13,28 @@
 #define LOOP_UPDATE_MS 5  // update interval
 #define LOOP_HOLD_MS 40   // hold after reaching each phase
 
+// Command-driven firmware
+#define AUTO_STAND_ON_BOOT    0
+#define ENABLE_DEBUG_MENU     1
+#define FIRMWARE_VERSION      1
+#define SERIAL_STARTUP_DELAY_MS 2000
+
+// Safe motion limits
+#define GAIT_SPEED_DEFAULT    0.02f
+#define GAIT_SPEED_MAX        0.10f
+#define GAIT_SPEED_MIN        0.005f
+#define GAIT_STEP_LEN_DEFAULT 30.0f
+#define GAIT_STEP_LEN_MAX     60.0f
+#define GAIT_STEP_HT_DEFAULT  25.0f
+#define GAIT_STEP_HT_MAX      70.0f
+#define BODY_OFFSET_MAX       60.0f
+#define ROTATE_CYCLES_MAX     12
+
+// Sit pose targets copied from the sitting branch global sit() function.
+#define SIT_FEMUR_DELTA   75
+#define SIT_TIBIA_DELTA   30
+#define SIT_INTERP_STEP    1
+
 // -----------------------------------------
 // Board 0x40 — LEFT SIDE
 // -----------------------------------------
