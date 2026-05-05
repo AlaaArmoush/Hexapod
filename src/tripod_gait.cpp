@@ -1,5 +1,4 @@
 #include "tripod_gait.h"
-#include "menu.h"
 #include <Arduino.h>
 #include <math.h>
 
@@ -187,7 +186,7 @@ void handleTripodGaitControl() {
 
     if (c == 'r' || c == 'R') { resetTripodGait(); printTripodGaitState(); return; }
     if (c == 'p' || c == 'P') { printTripodGaitState(); return; }
-    if (c == 'm' || c == 'M') { resetTripodGait(); waitForModeChoice(); return; }
+    if (c == 'm' || c == 'M') { resetTripodGait(); return; }
 
     // --- WASD cardinal movement (auto-start on press) ---
     if (c == 'w' || c == 'W') { setDirection( 1.0f,  0.0f, "FORWARD");  return; }

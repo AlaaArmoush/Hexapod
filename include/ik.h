@@ -26,6 +26,19 @@ struct LegDesc {
 };
 
 extern const LegDesc LEGS[6];
+
+enum IKResult {
+    IK_OK,
+    IK_INVALID_LEG
+};
+
+struct IKSolution {
+    int coxa;
+    int femur;
+    int tibia;
+};
+
+IKResult solveLegIK(int legIndex, float target_x, float target_y, float target_z, IKSolution& out);
 void legIK(int legIndex, float target_x, float target_y, float target_z);
 
 // Write all 6 legs to a standing pose using IK

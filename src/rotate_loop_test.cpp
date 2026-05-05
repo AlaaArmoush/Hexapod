@@ -1,5 +1,6 @@
 #include "rotate_loop_test.h"
 #include "menu.h"
+#include "interpolation.h"
 
 // Rotate loop current values
 int loopSet1FemurCurrent = 0;
@@ -20,6 +21,7 @@ static int loopPhase = 0;
 static unsigned long lastLoopUpdate = 0;
 static unsigned long phaseReachedAt = 0;
 static bool phaseSettled = false;
+static bool loopCycleCompleted = false;
 
 // --------------------------------------------------
 // Rotate Loop Test (Auto)
@@ -65,6 +67,7 @@ void resetRotateLoopTest() {
   loopPhase = 0;
   phaseSettled = false;
   phaseReachedAt = 0;
+  loopCycleCompleted = false;
 
   loopSet1FemurCurrent = 0;
   loopSet1CoxaCurrent = 0;
@@ -167,19 +170,6 @@ void setRotateLoopTargetsRight(int phase) {
   }
 }
 
-static int moveToward(int currentValue, int targetValue, int stepValue) {
-  if (currentValue < targetValue) {
-    currentValue += stepValue;
-    if (currentValue > targetValue)
-      currentValue = targetValue;
-  } else if (currentValue > targetValue) {
-    currentValue -= stepValue;
-    if (currentValue < targetValue)
-      currentValue = targetValue;
-  }
-  return currentValue;
-}
-
 static bool loopTargetsReached() {
   return loopSet1FemurCurrent == loopSet1FemurTarget &&
          loopSet1CoxaCurrent == loopSet1CoxaTarget &&
@@ -192,6 +182,7 @@ void startRotateLoop(LoopDirection dir) {
   loopPhase = 0;
   phaseSettled = false;
   phaseReachedAt = 0;
+  loopCycleCompleted = false;
 
   if (dir == LOOP_LEFT)
     setRotateLoopTargetsLeft(loopPhase);
@@ -200,10 +191,6 @@ void startRotateLoop(LoopDirection dir) {
 }
 
 void updateRotateLoopTest() {
-  extern TestMode currentMode;
-  if (currentMode != MODE_ROTATE_LOOP_TEST)
-    return;
-
   unsigned long now = millis();
   if (now - lastLoopUpdate < LOOP_UPDATE_MS)
     return;
@@ -217,13 +204,13 @@ void updateRotateLoopTest() {
 
   // Smooth interpolation toward target
   loopSet1FemurCurrent =
-      moveToward(loopSet1FemurCurrent, loopSet1FemurTarget, LOOP_INTERP_STEP);
+      moveTowardI(loopSet1FemurCurrent, loopSet1FemurTarget, LOOP_INTERP_STEP);
   loopSet1CoxaCurrent =
-      moveToward(loopSet1CoxaCurrent, loopSet1CoxaTarget, LOOP_INTERP_STEP);
+      moveTowardI(loopSet1CoxaCurrent, loopSet1CoxaTarget, LOOP_INTERP_STEP);
   loopSet2FemurCurrent =
-      moveToward(loopSet2FemurCurrent, loopSet2FemurTarget, LOOP_INTERP_STEP);
+      moveTowardI(loopSet2FemurCurrent, loopSet2FemurTarget, LOOP_INTERP_STEP);
   loopSet2CoxaCurrent =
-      moveToward(loopSet2CoxaCurrent, loopSet2CoxaTarget, LOOP_INTERP_STEP);
+      moveTowardI(loopSet2CoxaCurrent, loopSet2CoxaTarget, LOOP_INTERP_STEP);
 
   applyRotatePoseValues(loopSet1FemurCurrent, loopSet1CoxaCurrent,
                         loopSet2FemurCurrent, loopSet2CoxaCurrent);
@@ -234,8 +221,10 @@ void updateRotateLoopTest() {
       phaseReachedAt = now;
     } else if (now - phaseReachedAt >= LOOP_HOLD_MS) {
       loopPhase++;
-      if (loopPhase > 6)
+      if (loopPhase > 4) {
         loopPhase = 0;
+        loopCycleCompleted = true;
+      }
 
       if (loopDirection == LOOP_LEFT)
         setRotateLoopTargetsLeft(loopPhase);
@@ -247,6 +236,12 @@ void updateRotateLoopTest() {
   } else {
     phaseSettled = false;
   }
+}
+
+bool consumeRotateLoopCycleCompleted() {
+  bool completed = loopCycleCompleted;
+  loopCycleCompleted = false;
+  return completed;
 }
 
 // --------------------------------------------------
@@ -269,7 +264,6 @@ void handleRotateLoopTestControl() {
 
     if (c == 'm' || c == 'M') {
       resetRotateLoopTest();
-      waitForModeChoice();
       return;
     }
 
