@@ -20,4 +20,5 @@ void printRotateLoopPose();
 void resetRotateLoopTest();
 void startRotateLoop(LoopDirection dir);
 void updateRotateLoopTest();
+bool consumeRotateLoopCycleCompleted();
 void handleRotateLoopTestControl();
