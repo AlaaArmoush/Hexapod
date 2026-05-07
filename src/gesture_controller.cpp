@@ -31,6 +31,10 @@ static void allButWaveLeg(float x, float y, float z, float waveX, float waveY, f
   }
 }
 
+static float waveLeanY() {
+  return LEGS[waveLeg].mirrored ? 40.0f : -40.0f;
+}
+
 bool gestureStart(WaveCommand command) {
   waveLeg = constrain(command.leg, 0, 5);
   waveCount = constrain(command.count, 1, 6);
@@ -58,46 +62,84 @@ bool gestureStart(GestureCommand command) {
 }
 
 static void updateWave(unsigned long elapsed) {
-  const unsigned long leanMs = 250;
-  const unsigned long liftMs = 250;
-  const unsigned long sweepMs = 260UL * waveCount;
-  const unsigned long lowerMs = 250;
-  const unsigned long centerMs = 250;
+  const unsigned long stepPoseMs = 10;
+  const unsigned long poseSteps = 21;
+  const unsigned long leanMs = poseSteps * stepPoseMs;
+  const unsigned long liftMs = poseSteps * stepPoseMs;
+  const unsigned long lowerMs = poseSteps * stepPoseMs;
+  const unsigned long centerMs = poseSteps * stepPoseMs;
+  const unsigned long sweepStepMs = 15;
+  const bool leftSide = LEGS[waveLeg].mirrored;
+  const int sweepAStart = leftSide ? 83 : 97;
+  const int sweepAHigh = leftSide ? 113 : 137;
+  const int sweepALow = leftSide ? 43 : 67;
+  const int sweepSign = leftSide ? -1 : 1;
+  const int sweepStepDeg = 3;
+  const int sweepUpSteps = 14;
+  const int sweepDownSteps = 24;
+  const int sweepReturnSteps = 11;
+  const int sweepStepsPerWave = sweepUpSteps + sweepDownSteps + sweepReturnSteps;
+  const unsigned long sweepMs = (unsigned long)sweepStepsPerWave * sweepStepMs * waveCount;
 
   if (elapsed < leanMs) {
-    float t = easeInOut((float)elapsed / (float)leanMs);
-    poseBodyOffset(0.0f, lerp(0.0f, -40.0f, t), 0.0f);
+    int step = (int)(elapsed / stepPoseMs);
+    if (step > 20) step = 20;
+    float t = (float)step / 20.0f;
+    poseBodyOffset(0.0f, lerp(0.0f, waveLeanY(), t), 0.0f);
     return;
   }
 
   elapsed -= leanMs;
   if (elapsed < liftMs) {
-    float t = easeInOut((float)elapsed / (float)liftMs);
-    allButWaveLeg(0.0f, -40.0f, 0.0f, 0.0f, 0.0f, lerp(0.0f, 80.0f, t));
+    int step = (int)(elapsed / stepPoseMs);
+    if (step > 20) step = 20;
+    float t = (float)step / 20.0f;
+    allButWaveLeg(0.0f, waveLeanY(), 0.0f, 0.0f, 0.0f, lerp(0.0f, 100.0f, t));
     return;
   }
 
   elapsed -= liftMs;
   if (elapsed < sweepMs) {
-    allButWaveLeg(0.0f, -40.0f, 0.0f, 0.0f, 0.0f, 80.0f);
+    allButWaveLeg(0.0f, waveLeanY(), 0.0f, 0.0f, 0.0f, 100.0f);
     const LegDesc& leg = LEGS[waveLeg];
-    float phase = (float)(elapsed % 260UL) / 260.0f;
-    float angle = 97.0f + sinf(phase * 6.2831853f) * 35.0f;
-    servoWriteRaw(leg.board_coxa, leg.ch_coxa, (int)angle + leg.trim_coxa);
+    int step = (int)((elapsed / sweepStepMs) % sweepStepsPerWave);
+    int angle = sweepAStart;
+
+    if (step < sweepUpSteps) {
+      angle = sweepAStart + sweepSign * step * sweepStepDeg;
+      if (!leftSide && angle > sweepAHigh) angle = sweepAHigh;
+      if (leftSide && angle < sweepALow) angle = sweepALow;
+    } else if (step < sweepUpSteps + sweepDownSteps) {
+      int localStep = step - sweepUpSteps;
+      angle = (leftSide ? sweepALow : sweepAHigh) - sweepSign * localStep * sweepStepDeg;
+      if (!leftSide && angle < sweepALow) angle = sweepALow;
+      if (leftSide && angle > sweepAHigh) angle = sweepAHigh;
+    } else {
+      int localStep = step - sweepUpSteps - sweepDownSteps;
+      angle = (leftSide ? sweepAHigh : sweepALow) + sweepSign * localStep * sweepStepDeg;
+      if (!leftSide && angle > sweepAStart) angle = sweepAStart;
+      if (leftSide && angle < sweepAStart) angle = sweepAStart;
+    }
+
+    servoWriteRaw(leg.board_coxa, leg.ch_coxa, angle + leg.trim_coxa);
     return;
   }
 
   elapsed -= sweepMs;
   if (elapsed < lowerMs) {
-    float t = easeInOut((float)elapsed / (float)lowerMs);
-    allButWaveLeg(0.0f, -40.0f, 0.0f, 0.0f, 0.0f, lerp(80.0f, 0.0f, t));
+    int step = (int)(elapsed / stepPoseMs);
+    if (step > 20) step = 20;
+    float t = (float)step / 20.0f;
+    allButWaveLeg(0.0f, waveLeanY(), 0.0f, 0.0f, 0.0f, lerp(100.0f, 0.0f, t));
     return;
   }
 
   elapsed -= lowerMs;
   if (elapsed < centerMs) {
-    float t = easeInOut((float)elapsed / (float)centerMs);
-    poseBodyOffset(0.0f, lerp(-40.0f, 0.0f, t), 0.0f);
+    int step = (int)(elapsed / stepPoseMs);
+    if (step > 20) step = 20;
+    float t = (float)step / 20.0f;
+    poseBodyOffset(0.0f, lerp(waveLeanY(), 0.0f, t), 0.0f);
     return;
   }
 
