@@ -123,8 +123,16 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     if (cycles) out.rotate.cycles = atoi(cycles);
     else out.rotate.continuous = true;
   } else if (out.type == ROBOT_CMD_WAVE) {
-    char* count = strtok(nullptr, " \t\r\n");
-    if (count) out.wave.count = atoi(count);
+    char* firstArg = strtok(nullptr, " \t\r\n");
+    char* secondArg = strtok(nullptr, " \t\r\n");
+    if (firstArg) {
+      if (isalpha(firstArg[0])) {
+        out.wave.leg = parseLeg(firstArg);
+        if (secondArg) out.wave.count = atoi(secondArg);
+      } else {
+        out.wave.count = atoi(firstArg);
+      }
+    }
   } else if (out.type == ROBOT_CMD_GESTURE) {
     char* name = strtok(nullptr, " \t\r\n");
     copyGestureName(out.gesture, name ? name : "idle");
