@@ -27,6 +27,10 @@
 #define GAIT_STEP_LEN_MAX     60.0f
 #define GAIT_STEP_HT_DEFAULT  25.0f
 #define GAIT_STEP_HT_MAX      70.0f
+#define GAIT_DURATION_MS_MAX  10000UL
+#define GAIT_STEPS_MAX        50
+#define GAIT_DISTANCE_CM_MAX  200.0f
+#define GAIT_CM_PER_CYCLE_DEFAULT 5.0f
 #define BODY_OFFSET_MAX       60.0f
 #define ROTATE_CYCLES_MAX     12
 

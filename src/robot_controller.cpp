@@ -4,8 +4,12 @@
 #include "gesture_controller.h"
 #include "poses.h"
 #include "rotate_controller.h"
+#include "serial_protocol.h"
+#include <Arduino.h>
+#include <string.h>
 
 static RobotMode currentRobotMode = ROBOT_MODE_IDLE;
+static char lastError[32] = "";
 
 static float clampBody(float value) {
   if (value < -BODY_OFFSET_MAX) return -BODY_OFFSET_MAX;
@@ -22,9 +26,16 @@ void robotUpdate() {
     if (poseSitUpdate()) currentRobotMode = ROBOT_MODE_IDLE;
   } else if (currentRobotMode == ROBOT_MODE_GAIT) {
     gaitUpdate();
+    if (!gaitIsRunning() && gaitIsDone()) {
+      currentRobotMode = ROBOT_MODE_STANDING;
+      Serial.println("{\"event\":\"done\",\"cmd\":\"gait\",\"state\":\"standing\"}");
+    }
   } else if (currentRobotMode == ROBOT_MODE_ROTATING) {
     rotateUpdate();
-    if (!rotateIsRunning()) currentRobotMode = ROBOT_MODE_IDLE;
+    if (!rotateIsRunning()) {
+      currentRobotMode = ROBOT_MODE_STANDING;
+      if (rotateIsDone()) Serial.println("{\"event\":\"done\",\"cmd\":\"rotate\",\"state\":\"standing\"}");
+    }
   } else if (currentRobotMode == ROBOT_MODE_WAVING || currentRobotMode == ROBOT_MODE_GESTURE) {
     gestureUpdate();
     if (gestureIsDone()) currentRobotMode = ROBOT_MODE_STANDING;
@@ -55,7 +66,7 @@ bool robotCommandStop(StopMode mode) {
 }
 
 bool robotCommandGait(GaitCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  if (currentRobotMode != ROBOT_MODE_GAIT) robotCommandStop(STOP_MODE_SMOOTH);
   if (!gaitStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GAIT;
   return true;
@@ -95,6 +106,34 @@ RobotStatus robotGetStatus() {
   status.gaitRunning = gaitIsRunning();
   status.rotateRunning = rotateIsRunning();
   status.gestureRunning = gestureIsRunning();
+  status.interruptible = true;
+  status.lastError = lastError;
+
+  if (status.gaitRunning) {
+    const GaitCommand& command = gaitCurrentCommand();
+    status.activeCmd = "gait";
+    status.dir = gaitDirName(command.dir);
+    status.speed = command.speed;
+    status.bound = motionBoundName(command.bound);
+    status.stepsTarget = gaitStepsTarget();
+    status.stepsDone = gaitStepsDone();
+    status.durationTargetMs = gaitDurationTargetMs();
+    status.durationElapsedMs = gaitDurationElapsedMs();
+    status.distanceTargetCm = command.distanceCm;
+  } else if (status.rotateRunning) {
+    const RotateCommand& command = rotateCurrentCommand();
+    status.activeCmd = "rotate";
+    status.dir = command.dir == LOOP_RIGHT ? "right" : "left";
+    status.bound = command.continuous ? "continuous" : "cycles";
+    status.rotateCyclesTarget = rotateCyclesTarget();
+    status.rotateCyclesDone = rotateCyclesDone();
+    status.rotateContinuous = command.continuous;
+  } else if (status.gestureRunning) {
+    status.activeCmd = currentRobotMode == ROBOT_MODE_WAVING ? "wave" : "gesture";
+  } else {
+    status.activeCmd = "";
+    status.bound = "none";
+  }
   return status;
 }
 
@@ -110,4 +149,10 @@ const char* robotModeName(RobotMode mode) {
     case ROBOT_MODE_BODY: return "body";
   }
   return "unknown";
+}
+
+void robotSetLastError(const char* error) {
+  if (!error) error = "";
+  strncpy(lastError, error, sizeof(lastError) - 1);
+  lastError[sizeof(lastError) - 1] = '\0';
 }

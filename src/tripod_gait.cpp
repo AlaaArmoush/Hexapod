@@ -30,6 +30,7 @@ float gaitDirY = 0.0f;
 static float gaitPhase   = 0.0f; // 0.0 → 1.0 within each half-cycle
 static int   liftGroup   = 0;    // 0 = Group A swings, 1 = Group B swings
 static bool  gaitRunning = false;
+static bool  gaitCycleCompleted = false;
 
 static unsigned long lastGaitUpdate = 0;
 #define GAIT_UPDATE_MS 5
@@ -68,6 +69,7 @@ void updateTripodGait() {
     if (gaitPhase >= 1.0f) {
         gaitPhase = 0.0f;
         liftGroup = 1 - liftGroup;  // swap swing group
+        if (liftGroup == 0) gaitCycleCompleted = true;
     }
 
     // Update each leg
@@ -102,6 +104,7 @@ void resetTripodGait() {
     gaitRunning = false;
     gaitPhase   = 0.0f;
     liftGroup   = 0;
+    gaitCycleCompleted = false;
     gaitDirX    = 1.0f;
     gaitDirY    = 0.0f;
     for (int i = 0; i < 6; i++) {
@@ -113,6 +116,7 @@ void startTripodGait() {
     gaitPhase   = 0.0f;
     liftGroup   = 0;
     gaitRunning = true;
+    gaitCycleCompleted = false;
     lastGaitUpdate = millis();
 }
 
@@ -122,6 +126,16 @@ void stopTripodGait() {
     for (int i = 0; i < 6; i++) {
         legIK(i, 0.0f, 0.0f, 0.0f);
     }
+}
+
+bool tripodGaitIsRunning() {
+    return gaitRunning;
+}
+
+bool consumeTripodGaitCycleCompleted() {
+    bool completed = gaitCycleCompleted;
+    gaitCycleCompleted = false;
+    return completed;
 }
 
 // -----------------------------------------

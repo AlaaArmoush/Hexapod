@@ -60,35 +60,84 @@ static void copyGestureName(GestureCommand& command, const char* name) {
   command.name[sizeof(command.name) - 1] = '\0';
 }
 
+static bool hasRawServoField(JsonDocument& doc) {
+  return !doc["servo"].isNull() ||
+         !doc["angle"].isNull() ||
+         !doc["pwm"].isNull() ||
+         !doc["board"].isNull() ||
+         !doc["channel"].isNull() ||
+         !doc["raw"].isNull();
+}
+
+static bool invalidNumber(JsonDocument& doc, const char* key) {
+  if (doc[key].isNull()) return false;
+  return !(doc[key].is<int>() || doc[key].is<float>() || doc[key].is<double>());
+}
+
 static ParseResult parseJson(const char* line, RobotCommand& out) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, line);
   if (error) return PARSE_MALFORMED;
 
   const char* cmd = doc["cmd"] | "";
+  strncpy(out.cmdName, cmd, sizeof(out.cmdName) - 1);
+  out.cmdName[sizeof(out.cmdName) - 1] = '\0';
   out.type = commandTypeFromName(cmd);
+  out.rawServoControl = hasRawServoField(doc);
 
   if (out.type == ROBOT_CMD_STOP) {
     const char* mode = doc["mode"] | "smooth";
     out.stopMode = equalsIgnoreCase(mode, "emergency") ? STOP_MODE_EMERGENCY : STOP_MODE_SMOOTH;
   } else if (out.type == ROBOT_CMD_GAIT) {
     const char* dir = doc["dir"] | "forward";
+    strncpy(out.gait.dirName, dir, sizeof(out.gait.dirName) - 1);
+    out.gait.dirName[sizeof(out.gait.dirName) - 1] = '\0';
     if (!parseGaitDir(dir, out.gait)) {
-      out.gait.dir = GAIT_DIR_CUSTOM;
-      out.gait.x = doc["x"] | 0.0f;
-      out.gait.y = doc["y"] | 0.0f;
+      out.gait.invalidDirection = true;
     }
+    int boundCount = 0;
+    if (!doc["duration_ms"].isNull()) { out.gait.bound = MOTION_BOUND_DURATION_MS; boundCount++; }
+    if (!doc["steps"].isNull()) { out.gait.bound = MOTION_BOUND_STEPS; boundCount++; }
+    if (!doc["distance_cm"].isNull()) { out.gait.bound = MOTION_BOUND_DISTANCE_CM; boundCount++; }
+    out.gait.ambiguousBound = boundCount > 1;
+
+    out.gait.invalidNumeric =
+      invalidNumber(doc, "speed") || invalidNumber(doc, "step_len") ||
+      invalidNumber(doc, "stepLength") || invalidNumber(doc, "step_ht") ||
+      invalidNumber(doc, "stepHeight") || invalidNumber(doc, "duration_ms") ||
+      invalidNumber(doc, "steps") || invalidNumber(doc, "distance_cm");
     out.gait.speed = doc["speed"] | 0.0f;
     out.gait.stepLength = doc["step_len"] | 0.0f;
     if (out.gait.stepLength <= 0.0f) out.gait.stepLength = doc["stepLength"] | 0.0f;
     out.gait.stepHeight = doc["step_ht"] | 0.0f;
     if (out.gait.stepHeight <= 0.0f) out.gait.stepHeight = doc["stepHeight"] | 0.0f;
+    out.gait.durationMs = doc["duration_ms"] | 0UL;
+    out.gait.steps = doc["steps"] | 0;
+    out.gait.distanceCm = doc["distance_cm"] | 0.0f;
+    if ((out.gait.bound == MOTION_BOUND_DURATION_MS && out.gait.durationMs == 0) ||
+        (out.gait.bound == MOTION_BOUND_STEPS && out.gait.steps <= 0) ||
+        (out.gait.bound == MOTION_BOUND_DISTANCE_CM && out.gait.distanceCm <= 0.0f) ||
+        out.gait.speed < 0.0f || out.gait.stepLength < 0.0f || out.gait.stepHeight < 0.0f) {
+      out.gait.invalidNumeric = true;
+    }
   } else if (out.type == ROBOT_CMD_ROTATE) {
     const char* dir = doc["dir"] | "left";
-    out.rotate.dir = equalsIgnoreCase(dir, "right") ? LOOP_RIGHT : LOOP_LEFT;
+    strncpy(out.rotate.dirName, dir, sizeof(out.rotate.dirName) - 1);
+    out.rotate.dirName[sizeof(out.rotate.dirName) - 1] = '\0';
+    if (equalsIgnoreCase(dir, "right")) out.rotate.dir = LOOP_RIGHT;
+    else if (equalsIgnoreCase(dir, "left")) out.rotate.dir = LOOP_LEFT;
+    else out.rotate.invalidDirection = true;
+
+    int boundCount = 0;
+    if (!doc["cycles"].isNull()) boundCount++;
+    if (!doc["degrees"].isNull()) boundCount++;
+    if (!doc["continuous"].isNull()) boundCount++;
+    out.rotate.ambiguousBound = boundCount > 1;
+    out.rotate.invalidNumeric = invalidNumber(doc, "cycles") || invalidNumber(doc, "degrees");
     out.rotate.cycles = doc["cycles"] | 0;
     out.rotate.degrees = doc["degrees"] | 0;
     out.rotate.continuous = doc["continuous"] | false;
+    if (out.rotate.cycles < 0 || out.rotate.degrees < 0) out.rotate.invalidNumeric = true;
   } else if (out.type == ROBOT_CMD_WAVE) {
     const char* leg = doc["leg"] | "RF";
     out.wave.leg = parseLeg(leg);
@@ -102,6 +151,8 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     out.gesture.intensity = doc["intensity"] | 0.5f;
   }
 
+  out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric;
+
   return PARSE_OK;
 }
 
@@ -110,14 +161,20 @@ static ParseResult parseText(char* line, RobotCommand& out) {
   if (!token) return PARSE_EMPTY;
 
   out.type = commandTypeFromName(token);
+  strncpy(out.cmdName, token, sizeof(out.cmdName) - 1);
+  out.cmdName[sizeof(out.cmdName) - 1] = '\0';
 
   if (out.type == ROBOT_CMD_GAIT) {
     char* dir = strtok(nullptr, " \t\r\n");
+    strncpy(out.gait.dirName, dir ? dir : "forward", sizeof(out.gait.dirName) - 1);
+    out.gait.dirName[sizeof(out.gait.dirName) - 1] = '\0';
     if (!parseGaitDir(dir ? dir : "forward", out.gait)) return PARSE_MALFORMED;
     char* speed = strtok(nullptr, " \t\r\n");
     if (speed) out.gait.speed = atof(speed);
   } else if (out.type == ROBOT_CMD_ROTATE) {
     char* dir = strtok(nullptr, " \t\r\n");
+    strncpy(out.rotate.dirName, dir ? dir : "left", sizeof(out.rotate.dirName) - 1);
+    out.rotate.dirName[sizeof(out.rotate.dirName) - 1] = '\0';
     out.rotate.dir = equalsIgnoreCase(dir, "right") ? LOOP_RIGHT : LOOP_LEFT;
     char* cycles = strtok(nullptr, " \t\r\n");
     if (cycles) out.rotate.cycles = atoi(cycles);

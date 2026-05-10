@@ -54,20 +54,39 @@ enum GaitDir {
   GAIT_DIR_CUSTOM
 };
 
+enum MotionBoundType {
+  MOTION_BOUND_CONTINUOUS,
+  MOTION_BOUND_DURATION_MS,
+  MOTION_BOUND_STEPS,
+  MOTION_BOUND_DISTANCE_CM
+};
+
 struct GaitCommand {
   GaitDir dir = GAIT_DIR_FORWARD;
+  char dirName[20] = "forward";
   float speed = 0.0f;
   float stepLength = 0.0f;
   float stepHeight = 0.0f;
   float x = 0.0f;
   float y = 0.0f;
+  MotionBoundType bound = MOTION_BOUND_CONTINUOUS;
+  unsigned long durationMs = 0;
+  int steps = 0;
+  float distanceCm = 0.0f;
+  bool ambiguousBound = false;
+  bool invalidDirection = false;
+  bool invalidNumeric = false;
 };
 
 struct RotateCommand {
   LoopDirection dir = LOOP_LEFT;
+  char dirName[12] = "left";
   int cycles = 0;
   int degrees = 0;
   bool continuous = false;
+  bool ambiguousBound = false;
+  bool invalidDirection = false;
+  bool invalidNumeric = false;
 };
 
 struct WaveCommand {
@@ -88,6 +107,9 @@ struct GestureCommand {
 
 struct RobotCommand {
   RobotCommandType type = ROBOT_CMD_NONE;
+  char cmdName[20] = "";
+  bool rawServoControl = false;
+  bool invalidNumeric = false;
   StopMode stopMode = STOP_MODE_SMOOTH;
   GaitCommand gait;
   RotateCommand rotate;
@@ -101,4 +123,18 @@ struct RobotStatus {
   bool gaitRunning = false;
   bool rotateRunning = false;
   bool gestureRunning = false;
+  const char* activeCmd = "";
+  const char* dir = "";
+  float speed = 0.0f;
+  const char* bound = "none";
+  int stepsTarget = 0;
+  int stepsDone = 0;
+  unsigned long durationTargetMs = 0;
+  unsigned long durationElapsedMs = 0;
+  float distanceTargetCm = 0.0f;
+  int rotateCyclesTarget = 0;
+  int rotateCyclesDone = 0;
+  bool rotateContinuous = false;
+  bool interruptible = true;
+  const char* lastError = "";
 };
