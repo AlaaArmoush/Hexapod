@@ -8,12 +8,15 @@ static bool done = true;
 static bool continuous = false;
 static int targetCycles = 0;
 static int cyclesCompleted = 0;
+static RotateCommand currentCommand;
 
 bool rotateStart(RotateCommand command) {
   if (command.dir != LOOP_LEFT && command.dir != LOOP_RIGHT) return false;
+  if (command.invalidDirection || command.invalidNumeric || command.ambiguousBound) return false;
 
   if (command.degrees > 0) {
-    command.cycles = (command.degrees + 29) / 30;
+    command.cycles = (command.degrees + 15) / 30;
+    if (command.cycles < 1) command.cycles = 1;
   }
   if (command.continuous || command.cycles <= 0) {
     continuous = true;
@@ -24,6 +27,9 @@ bool rotateStart(RotateCommand command) {
   }
 
   cyclesCompleted = 0;
+  currentCommand = command;
+  currentCommand.cycles = targetCycles;
+  currentCommand.continuous = continuous;
   done = false;
   running = true;
   startRotateLoop(command.dir);
@@ -56,4 +62,16 @@ bool rotateIsRunning() {
 
 bool rotateIsDone() {
   return done;
+}
+
+const RotateCommand& rotateCurrentCommand() {
+  return currentCommand;
+}
+
+int rotateCyclesTarget() {
+  return targetCycles;
+}
+
+int rotateCyclesDone() {
+  return cyclesCompleted;
 }

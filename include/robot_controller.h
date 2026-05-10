@@ -14,3 +14,4 @@ bool robotCommandBody(BodyCommand command);
 bool robotCommandGesture(GestureCommand command);
 RobotStatus robotGetStatus();
 const char* robotModeName(RobotMode mode);
+void robotSetLastError(const char* error);
