@@ -10,9 +10,6 @@ The host should describe intent, not servo angles or raw display pixels. The
 firmware translates semantic commands into safe body motion, face animation, IK,
 and PCA9685 writes.
 
-For build/upload/test steps, see `command_architecture_guide.txt`.
-For a broad manual serial test list, see `tests_serial_monitor.txt`.
-
 ## Command Flow
 
 Motion commands follow this path:
@@ -313,19 +310,3 @@ Use this order:
 
 Prefer semantic face names. Do not add a host command that sends arbitrary
 pixels or bitmaps unless the safety model is deliberately changed.
-
-## Safety Rules
-
-- Keep new motions non-blocking when possible.
-- Start with low speeds and small offsets.
-- Do not casually edit servo trims, channels, IK mount angles, or calibration
-  constants.
-- Stop gait/rotate before applying sit, stand, body offset, or expressive
-  gestures.
-- Keep high-level commands semantic. Do not make the host send raw servo angles.
-- Keep high-level display commands semantic. Do not make the host send raw
-  pixels or bitmaps.
-- Reject raw-control fields such as `servo`, `angle`, `pwm`, `board`,
-  `channel`, `raw`, `pixel`, and `bitmap`.
-- If OLED brightness is poor, prefer changing drawn face geometry and lit pixel
-  area before experimenting with low-level SH1107 drive registers.
