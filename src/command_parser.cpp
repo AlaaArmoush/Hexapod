@@ -73,6 +73,17 @@ static void copyFaceName(FaceCommand& command, const char* name) {
   command.name[sizeof(command.name) - 1] = '\0';
 }
 
+static void copyFaceText(FaceCommand& command, const char* text) {
+  if (!text) {
+    command.text[0] = '\0';
+    command.hasText = false;
+    return;
+  }
+  strncpy(command.text, text, sizeof(command.text) - 1);
+  command.text[sizeof(command.text) - 1] = '\0';
+  command.hasText = command.text[0] != '\0';
+}
+
 static bool isLeanDirection(const char* dir) {
   return equalsIgnoreCase(dir, "left") || equalsIgnoreCase(dir, "right") ||
          equalsIgnoreCase(dir, "forward") || equalsIgnoreCase(dir, "backward") ||
@@ -186,6 +197,10 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     if (invalidNumber(doc, "intensity")) out.gesture.intensity = 0.5f;
   } else if (out.type == ROBOT_CMD_FACE) {
     copyFaceName(out.face, doc["name"] | "idle");
+    const char* faceText = doc["text"] | (const char*)nullptr;
+    if (!faceText && equalsIgnoreCase(out.face.name, "clock")) faceText = doc["time"] | (const char*)nullptr;
+    if (!faceText && equalsIgnoreCase(out.face.name, "calendar")) faceText = doc["date"] | (const char*)nullptr;
+    copyFaceText(out.face, faceText);
     out.face.invalidFace = invalidNumber(doc, "duration_ms");
     out.face.duration_ms = doc["duration_ms"] | FACE_COMMAND_DURATION_MS;
     out.face.persistent = doc["persistent"] | false;

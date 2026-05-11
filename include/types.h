@@ -114,9 +114,11 @@ struct GestureCommand {
 
 struct FaceCommand {
   char name[20] = "idle";
+  char text[24] = "";
   unsigned long duration_ms = 3500UL;
   bool persistent = false;
   bool invalidFace = false;
+  bool hasText = false;
 };
 
 struct LeanCommand {
