@@ -1,15 +1,27 @@
 #include "robot_controller.h"
 #include "config.h"
+#include "display_controller.h"
 #include "gait_controller.h"
 #include "gesture_controller.h"
 #include "poses.h"
 #include "rotate_controller.h"
 #include "serial_protocol.h"
 #include <Arduino.h>
+#include <ctype.h>
 #include <string.h>
 
 static RobotMode currentRobotMode = ROBOT_MODE_IDLE;
 static char lastError[32] = "";
+
+static bool equalsIgnoreCase(const char* a, const char* b) {
+  if (!a || !b) return false;
+  while (*a && *b) {
+    if (tolower(*a) != tolower(*b)) return false;
+    a++;
+    b++;
+  }
+  return *a == '\0' && *b == '\0';
+}
 
 static float clampBody(float value) {
   if (value < -BODY_OFFSET_MAX) return -BODY_OFFSET_MAX;
@@ -17,42 +29,99 @@ static float clampBody(float value) {
   return value;
 }
 
+static FaceState faceForGesture(const char* name) {
+  if (equalsIgnoreCase(name, "happy")) return FACE_HAPPY;
+  if (equalsIgnoreCase(name, "curious")) return FACE_CURIOUS;
+  if (equalsIgnoreCase(name, "scared")) return FACE_SCARED;
+  if (equalsIgnoreCase(name, "sleepy")) return FACE_SLEEPY;
+  if (equalsIgnoreCase(name, "listening")) return FACE_LISTENING;
+  return FACE_CURIOUS;
+}
+
+static const char* activeCmdForGestureName(const char* name) {
+  if (equalsIgnoreCase(name, "breathing") || equalsIgnoreCase(name, "sway")) return "idle";
+  if (equalsIgnoreCase(name, "lean")) return "lean";
+  if (equalsIgnoreCase(name, "look")) return "look";
+  if (equalsIgnoreCase(name, "nod")) return "nod";
+  if (equalsIgnoreCase(name, "shake")) return "shake";
+  return "gesture";
+}
+
+static void syncFaceToMode(RobotMode mode) {
+  switch (mode) {
+    case ROBOT_MODE_IDLE:
+      displaySetFace(FACE_IDLE);
+      break;
+    case ROBOT_MODE_STANDING:
+      displaySetFace(FACE_NEUTRAL);
+      break;
+    case ROBOT_MODE_SITTING:
+      displaySetFace(FACE_SLEEPY);
+      break;
+    case ROBOT_MODE_GAIT:
+      displaySetTemporaryFace(FACE_WALKING, 0);
+      break;
+    case ROBOT_MODE_ROTATING:
+      displaySetTemporaryFace(FACE_ROTATING, 0);
+      break;
+    case ROBOT_MODE_WAVING:
+      displaySetTemporaryFace(FACE_WAVING, 0);
+      break;
+    case ROBOT_MODE_GESTURE:
+      break;
+    case ROBOT_MODE_BODY:
+      displaySetFace(FACE_NEUTRAL);
+      break;
+  }
+}
+
+static void setRobotMode(RobotMode mode) {
+  currentRobotMode = mode;
+  syncFaceToMode(mode);
+}
+
 void robotInit() {
-  currentRobotMode = ROBOT_MODE_IDLE;
+  setRobotMode(ROBOT_MODE_IDLE);
 }
 
 void robotUpdate() {
   if (currentRobotMode == ROBOT_MODE_SITTING) {
-    if (poseSitUpdate()) currentRobotMode = ROBOT_MODE_IDLE;
+    if (poseSitUpdate()) setRobotMode(ROBOT_MODE_IDLE);
   } else if (currentRobotMode == ROBOT_MODE_GAIT) {
     gaitUpdate();
     if (!gaitIsRunning() && gaitIsDone()) {
-      currentRobotMode = ROBOT_MODE_STANDING;
+      setRobotMode(ROBOT_MODE_STANDING);
       Serial.println("{\"event\":\"done\",\"cmd\":\"gait\",\"state\":\"standing\"}");
     }
   } else if (currentRobotMode == ROBOT_MODE_ROTATING) {
     rotateUpdate();
     if (!rotateIsRunning()) {
-      currentRobotMode = ROBOT_MODE_STANDING;
+      setRobotMode(ROBOT_MODE_STANDING);
       if (rotateIsDone()) Serial.println("{\"event\":\"done\",\"cmd\":\"rotate\",\"state\":\"standing\"}");
     }
   } else if (currentRobotMode == ROBOT_MODE_WAVING || currentRobotMode == ROBOT_MODE_GESTURE) {
     gestureUpdate();
-    if (gestureIsDone()) currentRobotMode = ROBOT_MODE_STANDING;
+    if (gestureIsDone()) {
+      const char* doneCmd = currentRobotMode == ROBOT_MODE_WAVING ? "wave" : activeCmdForGestureName(gestureCurrentName());
+      setRobotMode(ROBOT_MODE_STANDING);
+      Serial.print("{\"event\":\"done\",\"cmd\":\"");
+      Serial.print(doneCmd && doneCmd[0] ? doneCmd : "gesture");
+      Serial.println("\",\"state\":\"standing\"}");
+    }
   }
 }
 
 bool robotCommandStand() {
   robotCommandStop(STOP_MODE_SMOOTH);
   poseStand();
-  currentRobotMode = ROBOT_MODE_STANDING;
+  setRobotMode(ROBOT_MODE_STANDING);
   return true;
 }
 
 bool robotCommandSit() {
   robotCommandStop(STOP_MODE_SMOOTH);
   poseSitStart();
-  currentRobotMode = ROBOT_MODE_SITTING;
+  setRobotMode(ROBOT_MODE_SITTING);
   return true;
 }
 
@@ -61,35 +130,35 @@ bool robotCommandStop(StopMode mode) {
   gaitStopSmooth();
   rotateStop();
   gestureStop();
-  currentRobotMode = ROBOT_MODE_IDLE;
+  setRobotMode(ROBOT_MODE_IDLE);
   return true;
 }
 
 bool robotCommandGait(GaitCommand command) {
   if (currentRobotMode != ROBOT_MODE_GAIT) robotCommandStop(STOP_MODE_SMOOTH);
   if (!gaitStart(command)) return false;
-  currentRobotMode = ROBOT_MODE_GAIT;
+  setRobotMode(ROBOT_MODE_GAIT);
   return true;
 }
 
 bool robotCommandRotate(RotateCommand command) {
   robotCommandStop(STOP_MODE_SMOOTH);
   if (!rotateStart(command)) return false;
-  currentRobotMode = ROBOT_MODE_ROTATING;
+  setRobotMode(ROBOT_MODE_ROTATING);
   return true;
 }
 
 bool robotCommandWave(WaveCommand command) {
   robotCommandStop(STOP_MODE_SMOOTH);
   if (!gestureStart(command)) return false;
-  currentRobotMode = ROBOT_MODE_WAVING;
+  setRobotMode(ROBOT_MODE_WAVING);
   return true;
 }
 
 bool robotCommandBody(BodyCommand command) {
   robotCommandStop(STOP_MODE_SMOOTH);
   poseBodyOffset(clampBody(command.x), clampBody(command.y), clampBody(command.z));
-  currentRobotMode = ROBOT_MODE_BODY;
+  setRobotMode(ROBOT_MODE_BODY);
   return true;
 }
 
@@ -97,6 +166,59 @@ bool robotCommandGesture(GestureCommand command) {
   robotCommandStop(STOP_MODE_SMOOTH);
   if (!gestureStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GESTURE;
+  displaySetTemporaryFace(faceForGesture(command.name), 1600);
+  return true;
+}
+
+bool robotCommandLean(LeanCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  command.amount_mm = constrain(command.amount_mm, 0.0f, LEAN_AMOUNT_MAX_MM);
+  command.duration_ms = constrain(command.duration_ms, 1UL, LEAN_DURATION_MAX_MS);
+  if (!leanStart(command)) return false;
+  currentRobotMode = ROBOT_MODE_GESTURE;
+  displaySetTemporaryFace(FACE_CURIOUS, command.duration_ms + 200);
+  return true;
+}
+
+bool robotCommandLook(LookCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  command.duration_ms = constrain(command.duration_ms, 1UL, LOOK_DURATION_MAX_MS);
+  if (!lookStart(command)) return false;
+  if (equalsIgnoreCase(command.dir, "center")) {
+    setRobotMode(ROBOT_MODE_STANDING);
+    displayCenterGaze();
+  } else {
+    currentRobotMode = ROBOT_MODE_GESTURE;
+    if (command.persistent) displaySetFace(FACE_LISTENING);
+    else displaySetTemporaryFace(FACE_LISTENING, command.duration_ms);
+    displaySetGaze(command.dir);
+  }
+  return true;
+}
+
+bool robotCommandNod(NodShakeCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  command.count = constrain(command.count, 1, NOD_COUNT_MAX);
+  if (!nodStart(command)) return false;
+  currentRobotMode = ROBOT_MODE_GESTURE;
+  displaySetTemporaryFace(FACE_LISTENING, (unsigned long)command.count * 300UL + 200UL);
+  return true;
+}
+
+bool robotCommandShake(NodShakeCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  command.count = constrain(command.count, 1, SHAKE_COUNT_MAX);
+  if (!shakeStart(command)) return false;
+  currentRobotMode = ROBOT_MODE_GESTURE;
+  displaySetTemporaryFace(FACE_SCARED, (unsigned long)command.count * 250UL + 200UL);
+  return true;
+}
+
+bool robotCommandIdleStyle(IdleStyleCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  if (!idleStyleStart(command)) return false;
+  currentRobotMode = ROBOT_MODE_GESTURE;
+  displaySetFace(FACE_IDLE);
   return true;
 }
 
@@ -108,6 +230,8 @@ RobotStatus robotGetStatus() {
   status.gestureRunning = gestureIsRunning();
   status.interruptible = true;
   status.lastError = lastError;
+  status.face = displayFaceName(displayGetCurrentFace());
+  status.faceTemporary = displayIsTemporaryFace();
 
   if (status.gaitRunning) {
     const GaitCommand& command = gaitCurrentCommand();
@@ -129,7 +253,9 @@ RobotStatus robotGetStatus() {
     status.rotateCyclesDone = rotateCyclesDone();
     status.rotateContinuous = command.continuous;
   } else if (status.gestureRunning) {
-    status.activeCmd = currentRobotMode == ROBOT_MODE_WAVING ? "wave" : "gesture";
+    status.gesture = gestureCurrentName();
+    if (currentRobotMode == ROBOT_MODE_WAVING) status.activeCmd = "wave";
+    else status.activeCmd = activeCmdForGestureName(status.gesture);
   } else {
     status.activeCmd = "";
     status.bound = "none";
