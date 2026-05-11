@@ -1,4 +1,5 @@
 #include "config.h"
+#include "display_controller.h"
 #include "menu.h"
 #include "robot_controller.h"
 #include "serial_protocol.h"
@@ -20,6 +21,7 @@ void setup() {
   servoDriver_1.setOscillatorFrequency(27000000);
   servoDriver_1.setPWMFreq(SERVO_FREQ);
 
+  displayInit();
   robotInit();
   serialProtocolInit();
 
@@ -31,6 +33,7 @@ void setup() {
 void loop() {
   serialProtocolUpdate();
   robotUpdate();
+  displayUpdate();
 #if ENABLE_DEBUG_MENU
   debugMenuUpdate();
 #endif
