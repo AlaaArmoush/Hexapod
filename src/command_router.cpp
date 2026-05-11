@@ -212,6 +212,7 @@ void routeCommand(const RobotCommand& command) {
         sendInvalidFace(command.face.name);
         return;
       }
+      displaySetFaceText(command.face.hasText ? command.face.text : "");
       if (command.face.persistent || face == FACE_IDLE || face == FACE_NEUTRAL) {
         displaySetFace(face);
       } else {
