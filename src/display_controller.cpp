@@ -63,7 +63,11 @@ static bool isCustomFace(FaceState face) {
          face == FACE_SURPRISED || face == FACE_STARSTRUCK || face == FACE_DIZZY ||
          face == FACE_CONFUSED || face == FACE_SAD || face == FACE_SLEEP ||
          face == FACE_LOADING || face == FACE_ALERT || face == FACE_LOW_BATTERY ||
-         face == FACE_BOOP || face == FACE_SCAN;
+         face == FACE_BOOP || face == FACE_SCAN || face == FACE_CLOCK ||
+         face == FACE_CALENDAR || face == FACE_SEARCH || face == FACE_CAMERA ||
+         face == FACE_MEMORY || face == FACE_TIMER || face == FACE_REMINDER ||
+         face == FACE_BATTERY || face == FACE_SYSTEM || face == FACE_WIFI ||
+         face == FACE_MICROPHONE || face == FACE_SPEAKING || face == FACE_SUCCESS;
 }
 
 static void drawThickLine(int x0, int y0, int x1, int y1, int thickness) {
@@ -147,6 +151,77 @@ static void drawBatteryIcon(int x, int y, int w, int h) {
   display.fillRect(x + 3, y + 3, max(2, w / 4), h - 6, SH110X_WHITE);
 }
 
+static void drawToolFacePlaceholder(FaceState face, unsigned long age) {
+  int pulse = 2 + (int)((age / 180) % 4);
+  display.drawRoundRect(24, 24, 80, 68, 8, SH110X_WHITE);
+  display.drawRoundRect(28, 28, 72, 60, 6, SH110X_WHITE);
+
+  if (face == FACE_CLOCK) {
+    display.drawCircle(64, 58, 22, SH110X_WHITE);
+    display.drawLine(64, 58, 64, 42, SH110X_WHITE);
+    display.drawLine(64, 58, 78, 58, SH110X_WHITE);
+  } else if (face == FACE_CALENDAR) {
+    display.drawRect(42, 38, 44, 36, SH110X_WHITE);
+    display.fillRect(42, 38, 44, 8, SH110X_WHITE);
+    display.drawFastHLine(48, 56, 32, SH110X_WHITE);
+    display.drawFastVLine(56, 48, 22, SH110X_WHITE);
+    display.drawFastVLine(72, 48, 22, SH110X_WHITE);
+  } else if (face == FACE_SEARCH) {
+    display.drawCircle(58, 54, 17, SH110X_WHITE);
+    drawThickLine(70, 66, 84, 80, 3);
+  } else if (face == FACE_CAMERA) {
+    display.drawRoundRect(38, 42, 52, 34, 5, SH110X_WHITE);
+    display.drawCircle(64, 59, 12, SH110X_WHITE);
+    display.fillCircle(64, 59, 4, SH110X_WHITE);
+  } else if (face == FACE_MEMORY || face == FACE_SYSTEM) {
+    display.drawRect(44, 38, 40, 40, SH110X_WHITE);
+    for (int i = 0; i < 4; i++) {
+      display.drawFastHLine(36, 44 + i * 9, 8, SH110X_WHITE);
+      display.drawFastHLine(84, 44 + i * 9, 8, SH110X_WHITE);
+      display.drawFastVLine(50 + i * 9, 30, 8, SH110X_WHITE);
+      display.drawFastVLine(50 + i * 9, 78, 8, SH110X_WHITE);
+    }
+    display.fillRect(54, 48, 20, 20, SH110X_WHITE);
+  } else if (face == FACE_TIMER) {
+    display.drawTriangle(48, 36, 80, 36, 64, 58, SH110X_WHITE);
+    display.drawTriangle(48, 80, 80, 80, 64, 58, SH110X_WHITE);
+    display.fillCircle(64, 58 + pulse, 2, SH110X_WHITE);
+  } else if (face == FACE_REMINDER) {
+    display.drawCircle(64, 56, 18, SH110X_WHITE);
+    display.fillRect(46, 56, 37, 20, SH110X_BLACK);
+    display.drawFastHLine(46, 74, 37, SH110X_WHITE);
+    display.fillCircle(64, 78, 3, SH110X_WHITE);
+  } else if (face == FACE_BATTERY) {
+    display.drawRect(42, 50, 42, 18, SH110X_WHITE);
+    display.fillRect(84, 56, 4, 6, SH110X_WHITE);
+    display.fillRect(46, 54, 27, 10, SH110X_WHITE);
+  } else if (face == FACE_WIFI) {
+    display.drawCircle(64, 76, 3, SH110X_WHITE);
+    display.drawCircle(64, 76, 15, SH110X_WHITE);
+    display.drawCircle(64, 76, 27, SH110X_WHITE);
+    display.fillRect(32, 76, 64, 32, SH110X_BLACK);
+  } else if (face == FACE_MICROPHONE) {
+    display.drawRoundRect(54, 34, 20, 36, 10, SH110X_WHITE);
+    display.drawFastVLine(64, 70, 14, SH110X_WHITE);
+    display.drawFastHLine(52, 84, 25, SH110X_WHITE);
+  } else if (face == FACE_SPEAKING) {
+    int h0 = 16 + pulse;
+    int h1 = 24 - pulse;
+    int h2 = 12 + pulse * 2;
+    display.fillRect(46, 66 - h0, 9, h0, SH110X_WHITE);
+    display.fillRect(60, 66 - h1, 9, h1, SH110X_WHITE);
+    display.fillRect(74, 66 - h2, 9, h2, SH110X_WHITE);
+  } else if (face == FACE_SUCCESS) {
+    drawThickLine(42, 62, 58, 78, 5);
+    drawThickLine(58, 78, 88, 44, 5);
+  }
+
+  display.setTextSize(1);
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(28, 102);
+  display.print(displayFaceName(face));
+}
+
 static void drawCustomFace(FaceState face) {
   if (!available) return;
 
@@ -223,6 +298,8 @@ static void drawCustomFace(FaceState face) {
     int scanX = 20 + (age / 18) % 88;
     display.drawFastVLine(scanX, 44, 54, SH110X_BLACK);
     display.drawFastVLine(scanX + 1, 44, 54, SH110X_BLACK);
+  } else {
+    drawToolFacePlaceholder(face, age);
   }
 
   display.display();
@@ -363,6 +440,19 @@ static void applyFace(FaceState face) {
     case FACE_LOW_BATTERY:
     case FACE_BOOP:
     case FACE_SCAN:
+    case FACE_CLOCK:
+    case FACE_CALENDAR:
+    case FACE_SEARCH:
+    case FACE_CAMERA:
+    case FACE_MEMORY:
+    case FACE_TIMER:
+    case FACE_REMINDER:
+    case FACE_BATTERY:
+    case FACE_SYSTEM:
+    case FACE_WIFI:
+    case FACE_MICROPHONE:
+    case FACE_SPEAKING:
+    case FACE_SUCCESS:
       break;
     case FACE_COUNT:
       break;
@@ -465,6 +555,19 @@ const char* displayFaceName(FaceState face) {
     case FACE_LOW_BATTERY: return "low_battery";
     case FACE_BOOP: return "boop";
     case FACE_SCAN: return "scan";
+    case FACE_CLOCK: return "clock";
+    case FACE_CALENDAR: return "calendar";
+    case FACE_SEARCH: return "search";
+    case FACE_CAMERA: return "camera";
+    case FACE_MEMORY: return "memory";
+    case FACE_TIMER: return "timer";
+    case FACE_REMINDER: return "reminder";
+    case FACE_BATTERY: return "battery";
+    case FACE_SYSTEM: return "system";
+    case FACE_WIFI: return "wifi";
+    case FACE_MICROPHONE: return "microphone";
+    case FACE_SPEAKING: return "speaking";
+    case FACE_SUCCESS: return "success";
     case FACE_COUNT: break;
   }
   return "idle";
@@ -494,9 +597,22 @@ bool displayParseFaceName(const char* name, FaceState& out) {
   else if (equalsIgnoreCase(name, "sleep")) out = FACE_SLEEP;
   else if (equalsIgnoreCase(name, "loading")) out = FACE_LOADING;
   else if (equalsIgnoreCase(name, "alert")) out = FACE_ALERT;
-  else if (equalsIgnoreCase(name, "low_battery") || equalsIgnoreCase(name, "battery")) out = FACE_LOW_BATTERY;
+  else if (equalsIgnoreCase(name, "low_battery")) out = FACE_LOW_BATTERY;
   else if (equalsIgnoreCase(name, "boop")) out = FACE_BOOP;
   else if (equalsIgnoreCase(name, "scan") || equalsIgnoreCase(name, "scanning")) out = FACE_SCAN;
+  else if (equalsIgnoreCase(name, "clock")) out = FACE_CLOCK;
+  else if (equalsIgnoreCase(name, "calendar")) out = FACE_CALENDAR;
+  else if (equalsIgnoreCase(name, "search")) out = FACE_SEARCH;
+  else if (equalsIgnoreCase(name, "camera")) out = FACE_CAMERA;
+  else if (equalsIgnoreCase(name, "memory")) out = FACE_MEMORY;
+  else if (equalsIgnoreCase(name, "timer")) out = FACE_TIMER;
+  else if (equalsIgnoreCase(name, "reminder")) out = FACE_REMINDER;
+  else if (equalsIgnoreCase(name, "battery")) out = FACE_BATTERY;
+  else if (equalsIgnoreCase(name, "system")) out = FACE_SYSTEM;
+  else if (equalsIgnoreCase(name, "wifi") || equalsIgnoreCase(name, "wi-fi")) out = FACE_WIFI;
+  else if (equalsIgnoreCase(name, "microphone") || equalsIgnoreCase(name, "mic")) out = FACE_MICROPHONE;
+  else if (equalsIgnoreCase(name, "speaking")) out = FACE_SPEAKING;
+  else if (equalsIgnoreCase(name, "success")) out = FACE_SUCCESS;
   else return false;
   return true;
 }
