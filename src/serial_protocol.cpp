@@ -2,6 +2,7 @@
 #include "command_parser.h"
 #include "command_router.h"
 #include "config.h"
+#include "robot_controller.h"
 #include <Arduino.h>
 
 static char lineBuffer[192];
@@ -44,6 +45,7 @@ void serialProtocolUpdate() {
 
       if (result == PARSE_EMPTY) return;
       if (result == PARSE_MALFORMED) {
+        robotSetLastError(lineBuffer[0] == '{' ? "malformed_json" : "malformed_command");
         serialSendError(lineBuffer[0] == '{' ? "malformed_json" : "malformed_command");
         return;
       }
@@ -55,6 +57,7 @@ void serialProtocolUpdate() {
       lineBuffer[lineLength++] = c;
     } else {
       lineLength = 0;
+      robotSetLastError("line_too_long");
       serialSendError("line_too_long");
     }
   }
