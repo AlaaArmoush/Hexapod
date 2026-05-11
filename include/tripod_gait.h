@@ -12,5 +12,7 @@ void resetTripodGait();
 void startTripodGait();
 void stopTripodGait();
 void updateTripodGait();
+bool tripodGaitIsRunning();
+bool consumeTripodGaitCycleCompleted();
 void printTripodGaitState();
 void handleTripodGaitControl();
