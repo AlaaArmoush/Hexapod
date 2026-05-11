@@ -9,6 +9,7 @@
 #include <FluxGarage_RoboEyes.h>
 #include <Wire.h>
 #include <ctype.h>
+#include <math.h>
 #include <string.h>
 
 static Adafruit_SH1107 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -149,6 +150,225 @@ static void drawBatteryIcon(int x, int y, int w, int h) {
   display.drawRect(x, y, w, h, SH110X_WHITE);
   display.fillRect(x + w, y + h / 3, 3, h / 3, SH110X_WHITE);
   display.fillRect(x + 3, y + 3, max(2, w / 4), h - 6, SH110X_WHITE);
+}
+
+static void drawArcSegments(int cx, int cy, int radius, int startDeg, int endDeg) {
+  int prevX = cx + (int)(cosf((float)startDeg * 0.017453292f) * radius);
+  int prevY = cy + (int)(sinf((float)startDeg * 0.017453292f) * radius);
+  for (int deg = startDeg + 6; deg <= endDeg; deg += 6) {
+    float rad = (float)deg * 0.017453292f;
+    int x = cx + (int)(cosf(rad) * radius);
+    int y = cy + (int)(sinf(rad) * radius);
+    display.drawLine(prevX, prevY, x, y, SH110X_WHITE);
+    prevX = x;
+    prevY = y;
+  }
+}
+
+static void drawClockToolFace(unsigned long age) {
+  const float twoPi = 6.2831853f;
+  int cx = 64;
+  int cy = 62;
+  display.drawCircle(cx, cy, 36, SH110X_WHITE);
+  display.drawCircle(cx, cy, 35, SH110X_WHITE);
+  for (int i = 0; i < 12; i++) {
+    float angle = -1.5707963f + ((float)i * twoPi / 12.0f);
+    int x0 = cx + (int)(cosf(angle) * 29.0f);
+    int y0 = cy + (int)(sinf(angle) * 29.0f);
+    int x1 = cx + (int)(cosf(angle) * 33.0f);
+    int y1 = cy + (int)(sinf(angle) * 33.0f);
+    display.drawLine(x0, y0, x1, y1, SH110X_WHITE);
+  }
+
+  float sweep = (float)((age / 1000) % 60) / 60.0f;
+  float minuteAngle = -1.5707963f + sweep * twoPi;
+  float hourAngle = -1.5707963f + (float)((age / 5000) % 12) * twoPi / 12.0f;
+  drawThickLine(cx, cy, cx + (int)(cosf(hourAngle) * 17.0f), cy + (int)(sinf(hourAngle) * 17.0f), 3);
+  drawThickLine(cx, cy, cx + (int)(cosf(minuteAngle) * 25.0f), cy + (int)(sinf(minuteAngle) * 25.0f), 3);
+  display.fillCircle(cx, cy, 3, SH110X_WHITE);
+}
+
+static void drawCalendarToolFace() {
+  display.drawRoundRect(32, 28, 64, 72, 4, SH110X_WHITE);
+  display.fillRect(32, 28, 64, 14, SH110X_WHITE);
+  display.fillRect(42, 22, 6, 14, SH110X_WHITE);
+  display.fillRect(80, 22, 6, 14, SH110X_WHITE);
+  display.drawFastHLine(38, 56, 52, SH110X_WHITE);
+  display.drawFastHLine(38, 72, 52, SH110X_WHITE);
+  display.drawFastVLine(54, 48, 42, SH110X_WHITE);
+  display.drawFastVLine(72, 48, 42, SH110X_WHITE);
+  display.fillRect(74, 74, 14, 14, SH110X_WHITE);
+  display.fillRect(77, 77, 8, 8, SH110X_BLACK);
+}
+
+static void drawSearchToolFace(unsigned long age) {
+  int pan = (int)(sinf((float)age / 420.0f) * 5.0f);
+  int cx = 58 + pan;
+  int cy = 54;
+  display.drawCircle(cx, cy, 25, SH110X_WHITE);
+  display.drawCircle(cx, cy, 24, SH110X_WHITE);
+  drawThickLine(cx + 17, cy + 17, cx + 40, cy + 40, 5);
+  display.drawCircle(cx, cy, 8, SH110X_WHITE);
+  display.fillRect(cx - 3, cy + 5, 7, 10, SH110X_WHITE);
+  display.fillCircle(cx, cy + 20, 3, SH110X_WHITE);
+}
+
+static void drawCameraToolFace(unsigned long age) {
+  display.drawRoundRect(26, 42, 76, 46, 6, SH110X_WHITE);
+  display.fillRect(38, 34, 22, 9, SH110X_WHITE);
+  display.drawRoundRect(32, 48, 18, 10, 3, SH110X_WHITE);
+  display.drawCircle(68, 65, 19, SH110X_WHITE);
+  display.drawCircle(68, 65, 12, SH110X_WHITE);
+  display.fillCircle(68, 65, 5, SH110X_WHITE);
+  display.fillRect(87, 36, 7, 5, SH110X_WHITE);
+  if (age < 180) {
+    display.drawLine(96, 36, 112, 24, SH110X_WHITE);
+    display.drawLine(101, 46, 120, 44, SH110X_WHITE);
+    display.drawLine(92, 31, 96, 14, SH110X_WHITE);
+  }
+}
+
+static void drawMemoryToolFace(unsigned long age) {
+  display.drawRoundRect(38, 32, 52, 58, 4, SH110X_WHITE);
+  for (int i = 0; i < 6; i++) {
+    display.drawFastHLine(28, 38 + i * 9, 10, SH110X_WHITE);
+    display.drawFastHLine(90, 38 + i * 9, 10, SH110X_WHITE);
+  }
+  for (int i = 0; i < 5; i++) {
+    display.drawFastVLine(46 + i * 9, 22, 10, SH110X_WHITE);
+    display.drawFastVLine(46 + i * 9, 90, 10, SH110X_WHITE);
+  }
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      int lit = ((age / 260) + row + col * 2) % 4;
+      if (lit != 0) {
+        display.fillRect(50 + col * 13, 44 + row * 12, 7, 7, SH110X_WHITE);
+      } else {
+        display.drawRect(50 + col * 13, 44 + row * 12, 7, 7, SH110X_WHITE);
+      }
+    }
+  }
+}
+
+static void drawBatteryToolFace() {
+  display.drawRoundRect(30, 48, 62, 28, 4, SH110X_WHITE);
+  display.fillRect(92, 56, 7, 12, SH110X_WHITE);
+  display.fillRect(36, 54, 40, 16, SH110X_WHITE);
+  display.drawFastVLine(80, 52, 20, SH110X_WHITE);
+  display.fillCircle(48, 90, 2, SH110X_WHITE);
+  display.fillCircle(64, 90, 2, SH110X_WHITE);
+  display.fillCircle(80, 90, 2, SH110X_WHITE);
+}
+
+static void drawMicrophoneToolFace(unsigned long age) {
+  display.drawRoundRect(50, 26, 28, 48, 14, SH110X_WHITE);
+  display.drawFastHLine(56, 40, 16, SH110X_WHITE);
+  display.drawFastHLine(56, 52, 16, SH110X_WHITE);
+  display.drawRoundRect(42, 44, 44, 42, 12, SH110X_WHITE);
+  display.fillRect(43, 44, 42, 18, SH110X_BLACK);
+  display.drawFastVLine(64, 86, 14, SH110X_WHITE);
+  display.drawFastHLine(48, 100, 33, SH110X_WHITE);
+  if (age < 420) {
+    display.drawCircle(64, 52, 34 + (int)(age / 140), SH110X_WHITE);
+  }
+}
+
+static void drawSuccessToolFace(unsigned long age) {
+  display.drawCircle(64, 64, 38, SH110X_WHITE);
+  display.drawCircle(64, 64, 37, SH110X_WHITE);
+  int phase = age > 360 ? 2 : (age > 180 ? 1 : 0);
+  if (phase >= 0) {
+    drawThickLine(42, 63, 56, 77, 7);
+  }
+  if (phase >= 1) {
+    drawThickLine(56, 77, 88, 43, 7);
+  }
+}
+
+static void drawTimerToolFace(unsigned long age) {
+  float phase = (float)(age % 1600) / 1600.0f;
+  display.drawLine(44, 30, 84, 30, SH110X_WHITE);
+  display.drawLine(44, 30, 62, 61, SH110X_WHITE);
+  display.drawLine(84, 30, 66, 61, SH110X_WHITE);
+  display.drawLine(62, 61, 44, 94, SH110X_WHITE);
+  display.drawLine(66, 61, 84, 94, SH110X_WHITE);
+  display.drawLine(44, 94, 84, 94, SH110X_WHITE);
+  display.drawFastHLine(50, 26, 29, SH110X_WHITE);
+  display.drawFastHLine(50, 98, 29, SH110X_WHITE);
+
+  int topHeight = max(2, 16 - (int)(phase * 14.0f));
+  display.fillTriangle(52, 36, 76, 36, 64, 36 + topHeight, SH110X_WHITE);
+  int bottomHeight = 4 + (int)(phase * 18.0f);
+  display.fillTriangle(52, 88, 76, 88, 64, 88 - bottomHeight, SH110X_WHITE);
+
+  int dotY = 61 + (int)(phase * 22.0f);
+  display.fillCircle(64, dotY, 2, SH110X_WHITE);
+  display.fillCircle(60, 72 + ((age / 120) % 13), 1, SH110X_WHITE);
+  display.fillCircle(68, 66 + ((age / 160) % 15), 1, SH110X_WHITE);
+}
+
+static void drawReminderToolFace(unsigned long age) {
+  int swing = (int)(sinf((float)age / 260.0f) * 5.0f);
+  int cx = 64 + swing;
+  display.fillCircle(cx, 34, 4, SH110X_WHITE);
+  display.drawCircle(cx, 55, 24, SH110X_WHITE);
+  display.drawCircle(cx, 55, 23, SH110X_WHITE);
+  display.fillRect(cx - 28, 55, 57, 22, SH110X_BLACK);
+  display.drawLine(cx - 22, 55, cx - 28, 78, SH110X_WHITE);
+  display.drawLine(cx + 22, 55, cx + 28, 78, SH110X_WHITE);
+  display.drawFastHLine(cx - 28, 78, 57, SH110X_WHITE);
+  display.drawFastHLine(cx - 22, 82, 45, SH110X_WHITE);
+  display.fillCircle(64 - swing / 2, 88, 4, SH110X_WHITE);
+}
+
+static void drawSystemToolFace(unsigned long age) {
+  int cx = 64;
+  int cy = 62;
+  float spin = (float)(age % 2400) / 2400.0f * 6.2831853f;
+  for (int i = 0; i < 8; i++) {
+    float angle = spin + (float)i * 0.78539816f;
+    int x0 = cx + (int)(cosf(angle) * 23.0f);
+    int y0 = cy + (int)(sinf(angle) * 23.0f);
+    int x1 = cx + (int)(cosf(angle) * 34.0f);
+    int y1 = cy + (int)(sinf(angle) * 34.0f);
+    drawThickLine(x0, y0, x1, y1, 5);
+  }
+  display.drawCircle(cx, cy, 25, SH110X_WHITE);
+  display.drawCircle(cx, cy, 24, SH110X_WHITE);
+  display.fillCircle(cx, cy, 10, SH110X_BLACK);
+  display.drawCircle(cx, cy, 10, SH110X_WHITE);
+  display.fillCircle(cx, cy, 3, SH110X_WHITE);
+}
+
+static void drawWifiToolFace(unsigned long age) {
+  int visible = (age / 260) % 4;
+  display.fillCircle(64, 86, 4, SH110X_WHITE);
+  if (visible >= 1) {
+    drawArcSegments(64, 88, 18, 215, 325);
+    drawArcSegments(64, 88, 19, 215, 325);
+  }
+  if (visible >= 2) {
+    drawArcSegments(64, 88, 31, 215, 325);
+    drawArcSegments(64, 88, 32, 215, 325);
+  }
+  if (visible >= 3 || visible == 0) {
+    drawArcSegments(64, 88, 44, 215, 325);
+    drawArcSegments(64, 88, 45, 215, 325);
+  }
+}
+
+static void drawSpeakingToolFace(unsigned long age) {
+  int heights[3];
+  heights[0] = 18 + (int)((sinf((float)age / 170.0f) * 0.5f + 0.5f) * 26.0f);
+  heights[1] = 24 + (int)((sinf((float)age / 210.0f + 1.5f) * 0.5f + 0.5f) * 34.0f);
+  heights[2] = 18 + (int)((sinf((float)age / 190.0f + 3.0f) * 0.5f + 0.5f) * 26.0f);
+  for (int i = 0; i < 3; i++) {
+    int x = 42 + i * 20;
+    int h = heights[i];
+    display.fillRoundRect(x, 84 - h, 12, h, 4, SH110X_WHITE);
+    display.fillRect(x + 3, 84 - h + 3, 6, max(2, h - 6), SH110X_BLACK);
+  }
+  display.drawFastHLine(36, 90, 57, SH110X_WHITE);
 }
 
 static void drawToolFacePlaceholder(FaceState face, unsigned long age) {
@@ -298,6 +518,32 @@ static void drawCustomFace(FaceState face) {
     int scanX = 20 + (age / 18) % 88;
     display.drawFastVLine(scanX, 44, 54, SH110X_BLACK);
     display.drawFastVLine(scanX + 1, 44, 54, SH110X_BLACK);
+  } else if (face == FACE_CLOCK) {
+    drawClockToolFace(age);
+  } else if (face == FACE_CALENDAR) {
+    drawCalendarToolFace();
+  } else if (face == FACE_SEARCH) {
+    drawSearchToolFace(age);
+  } else if (face == FACE_CAMERA) {
+    drawCameraToolFace(age);
+  } else if (face == FACE_MEMORY) {
+    drawMemoryToolFace(age);
+  } else if (face == FACE_TIMER) {
+    drawTimerToolFace(age);
+  } else if (face == FACE_REMINDER) {
+    drawReminderToolFace(age);
+  } else if (face == FACE_BATTERY) {
+    drawBatteryToolFace();
+  } else if (face == FACE_SYSTEM) {
+    drawSystemToolFace(age);
+  } else if (face == FACE_WIFI) {
+    drawWifiToolFace(age);
+  } else if (face == FACE_MICROPHONE) {
+    drawMicrophoneToolFace(age);
+  } else if (face == FACE_SPEAKING) {
+    drawSpeakingToolFace(age);
+  } else if (face == FACE_SUCCESS) {
+    drawSuccessToolFace(age);
   } else {
     drawToolFacePlaceholder(face, age);
   }
