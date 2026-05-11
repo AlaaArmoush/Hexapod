@@ -5,6 +5,7 @@
 #include "poses.h"
 #include "servo_driver.h"
 #include <Arduino.h>
+#include <ctype.h>
 #include <string.h>
 
 enum GestureKind {
@@ -13,7 +14,15 @@ enum GestureKind {
   GESTURE_HAPPY,
   GESTURE_CURIOUS,
   GESTURE_SCARED,
-  GESTURE_IDLE
+  GESTURE_IDLE,
+  GESTURE_SLEEPY,
+  GESTURE_LISTENING,
+  GESTURE_LEAN,
+  GESTURE_LOOK,
+  GESTURE_NOD,
+  GESTURE_SHAKE,
+  GESTURE_BREATHING,
+  GESTURE_SWAY
 };
 
 static GestureKind kind = GESTURE_NONE;
@@ -23,6 +32,20 @@ static unsigned long startedAt = 0;
 static int waveLeg = 3;
 static int waveCount = 2;
 static float intensity = 0.5f;
+static LeanCommand leanCommand;
+static LookCommand lookCommand;
+static NodShakeCommand nodShakeCommand;
+static IdleStyleCommand idleStyleCommand;
+
+static bool equalsIgnoreCase(const char* a, const char* b) {
+  if (!a || !b) return false;
+  while (*a && *b) {
+    if (tolower(*a) != tolower(*b)) return false;
+    a++;
+    b++;
+  }
+  return *a == '\0' && *b == '\0';
+}
 
 static void allButWaveLeg(float x, float y, float z, float waveX, float waveY, float waveZ) {
   for (int i = 0; i < 6; i++) {
@@ -50,11 +73,71 @@ bool gestureStart(GestureCommand command) {
   if (intensity < 0.0f) intensity = 0.0f;
   if (intensity > 1.0f) intensity = 1.0f;
 
-  if (strcmp(command.name, "happy") == 0) kind = GESTURE_HAPPY;
-  else if (strcmp(command.name, "curious") == 0) kind = GESTURE_CURIOUS;
-  else if (strcmp(command.name, "scared") == 0) kind = GESTURE_SCARED;
+  if (equalsIgnoreCase(command.name, "happy")) kind = GESTURE_HAPPY;
+  else if (equalsIgnoreCase(command.name, "curious")) kind = GESTURE_CURIOUS;
+  else if (equalsIgnoreCase(command.name, "scared")) kind = GESTURE_SCARED;
+  else if (equalsIgnoreCase(command.name, "sleepy")) kind = GESTURE_SLEEPY;
+  else if (equalsIgnoreCase(command.name, "listening")) kind = GESTURE_LISTENING;
   else kind = GESTURE_IDLE;
 
+  running = true;
+  done = false;
+  startedAt = millis();
+  return true;
+}
+
+bool leanStart(LeanCommand command) {
+  command.amount_mm = constrain(command.amount_mm, 0.0f, LEAN_AMOUNT_MAX_MM);
+  command.duration_ms = constrain(command.duration_ms, 1UL, LEAN_DURATION_MAX_MS);
+  leanCommand = command;
+  kind = GESTURE_LEAN;
+  running = true;
+  done = false;
+  startedAt = millis();
+  return true;
+}
+
+bool lookStart(LookCommand command) {
+  command.duration_ms = constrain(command.duration_ms, 1UL, LOOK_DURATION_MAX_MS);
+  lookCommand = command;
+  kind = GESTURE_LOOK;
+  startedAt = millis();
+  done = false;
+
+  if (equalsIgnoreCase(command.dir, "center")) {
+    poseStand();
+    running = false;
+    done = true;
+    return true;
+  }
+
+  running = true;
+  return true;
+}
+
+bool nodStart(NodShakeCommand command) {
+  command.count = constrain(command.count, 1, NOD_COUNT_MAX);
+  nodShakeCommand = command;
+  kind = GESTURE_NOD;
+  running = true;
+  done = false;
+  startedAt = millis();
+  return true;
+}
+
+bool shakeStart(NodShakeCommand command) {
+  command.count = constrain(command.count, 1, SHAKE_COUNT_MAX);
+  nodShakeCommand = command;
+  kind = GESTURE_SHAKE;
+  running = true;
+  done = false;
+  startedAt = millis();
+  return true;
+}
+
+bool idleStyleStart(IdleStyleCommand command) {
+  idleStyleCommand = command;
+  kind = equalsIgnoreCase(command.style, "sway") ? GESTURE_SWAY : GESTURE_BREATHING;
   running = true;
   done = false;
   startedAt = millis();
@@ -166,9 +249,88 @@ static void updateNamedGesture(unsigned long elapsed) {
     poseBodyOffset(x, y, 0.0f);
   } else if (kind == GESTURE_SCARED) {
     poseBodyOffset(0.0f, 0.0f, 40.0f * intensity);
+  } else if (kind == GESTURE_SLEEPY) {
+    float y = sinf(seconds * 2.0f) * 6.0f * intensity;
+    poseBodyOffset(0.0f, y, -15.0f);
+  } else if (kind == GESTURE_LISTENING) {
+    float y = sinf(seconds * 3.0f) * 8.0f * intensity;
+    poseBodyOffset(24.0f * intensity, y, 0.0f);
   } else {
     float y = sinf(seconds * 4.0f) * 15.0f * intensity;
     poseBodyOffset(0.0f, y, 0.0f);
+  }
+}
+
+static void updateLean(unsigned long elapsed) {
+  if (elapsed >= leanCommand.duration_ms) {
+    poseStand();
+    running = false;
+    done = true;
+    return;
+  }
+
+  float amount = leanCommand.amount_mm;
+  if (equalsIgnoreCase(leanCommand.dir, "right")) poseBodyOffset(0.0f, -amount, 0.0f);
+  else if (equalsIgnoreCase(leanCommand.dir, "forward")) poseBodyOffset(amount, 0.0f, 0.0f);
+  else if (equalsIgnoreCase(leanCommand.dir, "backward") || equalsIgnoreCase(leanCommand.dir, "back")) poseBodyOffset(-amount, 0.0f, 0.0f);
+  else poseBodyOffset(0.0f, amount, 0.0f);
+}
+
+static void updateLook(unsigned long elapsed) {
+  if (!lookCommand.persistent && elapsed >= lookCommand.duration_ms) {
+    poseStand();
+    running = false;
+    done = true;
+    return;
+  }
+
+  if (equalsIgnoreCase(lookCommand.dir, "right")) {
+    poseBodyOffset(0.0f, -LOOK_BODY_OFFSET_Y, 0.0f);
+  } else if (equalsIgnoreCase(lookCommand.dir, "left")) {
+    poseBodyOffset(0.0f, LOOK_BODY_OFFSET_Y, 0.0f);
+  } else if (equalsIgnoreCase(lookCommand.dir, "up")) {
+    poseBodyOffset(LOOK_BODY_OFFSET_X, 0.0f, 0.0f);
+  } else if (equalsIgnoreCase(lookCommand.dir, "down")) {
+    poseBodyOffset(-LOOK_BODY_OFFSET_X, 0.0f, 0.0f);
+  } else {
+    poseStand();
+  }
+}
+
+static void updateNod(unsigned long elapsed) {
+  const unsigned long cycleMs = 300;
+  unsigned long duration = (unsigned long)nodShakeCommand.count * cycleMs;
+  if (elapsed >= duration) {
+    poseStand();
+    running = false;
+    done = true;
+    return;
+  }
+
+  float phase = (float)elapsed / (float)cycleMs * TWO_PI;
+  poseBodyOffset(0.0f, 0.0f, sinf(phase) * 16.0f);
+}
+
+static void updateShake(unsigned long elapsed) {
+  const unsigned long cycleMs = 250;
+  unsigned long duration = (unsigned long)nodShakeCommand.count * cycleMs;
+  if (elapsed >= duration) {
+    poseStand();
+    running = false;
+    done = true;
+    return;
+  }
+
+  float phase = (float)elapsed / (float)cycleMs * TWO_PI;
+  poseBodyOffset(0.0f, sinf(phase) * 18.0f, 0.0f);
+}
+
+static void updateExpressiveIdle(unsigned long elapsed) {
+  float seconds = elapsed / 1000.0f;
+  if (kind == GESTURE_SWAY) {
+    poseBodyOffset(0.0f, sinf(seconds * TWO_PI / 3.0f) * 10.0f, 0.0f);
+  } else {
+    poseBodyOffset(0.0f, 0.0f, sinf(seconds * TWO_PI / 2.0f) * 8.0f);
   }
 }
 
@@ -176,6 +338,11 @@ void gestureUpdate() {
   if (!running) return;
   unsigned long elapsed = millis() - startedAt;
   if (kind == GESTURE_WAVE) updateWave(elapsed);
+  else if (kind == GESTURE_LEAN) updateLean(elapsed);
+  else if (kind == GESTURE_LOOK) updateLook(elapsed);
+  else if (kind == GESTURE_NOD) updateNod(elapsed);
+  else if (kind == GESTURE_SHAKE) updateShake(elapsed);
+  else if (kind == GESTURE_BREATHING || kind == GESTURE_SWAY) updateExpressiveIdle(elapsed);
   else updateNamedGesture(elapsed);
 }
 
@@ -192,4 +359,24 @@ bool gestureIsRunning() {
 
 bool gestureIsDone() {
   return done;
+}
+
+const char* gestureCurrentName() {
+  switch (kind) {
+    case GESTURE_WAVE: return "wave";
+    case GESTURE_HAPPY: return "happy";
+    case GESTURE_CURIOUS: return "curious";
+    case GESTURE_SCARED: return "scared";
+    case GESTURE_IDLE: return "idle";
+    case GESTURE_SLEEPY: return "sleepy";
+    case GESTURE_LISTENING: return "listening";
+    case GESTURE_LEAN: return "lean";
+    case GESTURE_LOOK: return "look";
+    case GESTURE_NOD: return "nod";
+    case GESTURE_SHAKE: return "shake";
+    case GESTURE_BREATHING: return "breathing";
+    case GESTURE_SWAY: return "sway";
+    case GESTURE_NONE: break;
+  }
+  return "";
 }
