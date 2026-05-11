@@ -46,6 +46,7 @@ void displayInit();
 void displayUpdate();
 void displaySetFace(FaceState face);
 void displaySetTemporaryFace(FaceState face, unsigned long durationMs);
+void displaySetFaceText(const char* text);
 void displayRestoreBaseFace();
 FaceState displayGetCurrentFace();
 bool displayIsTemporaryFace();
