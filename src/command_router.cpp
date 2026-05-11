@@ -1,4 +1,5 @@
 #include "command_router.h"
+#include "display_controller.h"
 #include "gait_controller.h"
 #include "robot_controller.h"
 #include "rotate_controller.h"
@@ -17,6 +18,13 @@ static const char* commandName(RobotCommandType type) {
     case ROBOT_CMD_WAVE: return "wave";
     case ROBOT_CMD_BODY: return "body";
     case ROBOT_CMD_GESTURE: return "gesture";
+    case ROBOT_CMD_FACE: return "face";
+    case ROBOT_CMD_BLINK: return "blink";
+    case ROBOT_CMD_LEAN: return "lean";
+    case ROBOT_CMD_LOOK: return "look";
+    case ROBOT_CMD_NOD: return "nod";
+    case ROBOT_CMD_SHAKE: return "shake";
+    case ROBOT_CMD_IDLE_STYLE: return "idle";
     case ROBOT_CMD_NONE: return "unknown";
   }
   return "unknown";
@@ -28,7 +36,13 @@ static void sendStatus() {
   Serial.print(robotModeName(status.mode));
   Serial.print("\",\"active_cmd\":\"");
   Serial.print(status.activeCmd);
-  Serial.print("\",\"dir\":\"");
+  Serial.print("\",\"gesture\":\"");
+  Serial.print(status.gesture);
+  Serial.print("\",\"face\":\"");
+  Serial.print(status.face);
+  Serial.print("\",\"face_temporary\":");
+  Serial.print(status.faceTemporary ? "true" : "false");
+  Serial.print(",\"dir\":\"");
   Serial.print(status.dir);
   Serial.print("\",\"speed\":");
   Serial.print(status.speed, 3);
@@ -74,6 +88,20 @@ static void sendInvalidDirection(const char* dir) {
   robotSetLastError("invalid_direction");
   Serial.print("{\"ok\":false,\"error\":\"invalid_direction\",\"dir\":\"");
   Serial.print(dir ? dir : "");
+  Serial.println("\"}");
+}
+
+static void sendInvalidStyle(const char* style) {
+  robotSetLastError("invalid_style");
+  Serial.print("{\"ok\":false,\"error\":\"invalid_style\",\"style\":\"");
+  Serial.print(style ? style : "");
+  Serial.println("\"}");
+}
+
+static void sendInvalidFace(const char* face) {
+  robotSetLastError("invalid_face");
+  Serial.print("{\"ok\":false,\"error\":\"invalid_face\",\"face\":\"");
+  Serial.print(face ? face : "");
   Serial.println("\"}");
 }
 
@@ -177,6 +205,53 @@ void routeCommand(const RobotCommand& command) {
       break;
     case ROBOT_CMD_GESTURE:
       ok = robotCommandGesture(command.gesture);
+      break;
+    case ROBOT_CMD_FACE: {
+      FaceState face;
+      if (!displayParseFaceName(command.face.name, face)) {
+        sendInvalidFace(command.face.name);
+        return;
+      }
+      if (command.face.persistent || face == FACE_IDLE || face == FACE_NEUTRAL) {
+        displaySetFace(face);
+      } else {
+        displaySetTemporaryFace(face, command.face.duration_ms);
+      }
+      ok = true;
+      break;
+    }
+    case ROBOT_CMD_BLINK:
+      displayTriggerBlink();
+      robotSetLastError("");
+      serialSendOk("blink");
+      Serial.println("{\"event\":\"done\",\"cmd\":\"blink\"}");
+      return;
+    case ROBOT_CMD_LEAN:
+      if (command.lean.invalidDirection) {
+        sendInvalidDirection(command.lean.dir);
+        return;
+      }
+      ok = robotCommandLean(command.lean);
+      break;
+    case ROBOT_CMD_LOOK:
+      if (command.look.invalidDirection) {
+        sendInvalidDirection(command.look.dir);
+        return;
+      }
+      ok = robotCommandLook(command.look);
+      break;
+    case ROBOT_CMD_NOD:
+      ok = robotCommandNod(command.nodShake);
+      break;
+    case ROBOT_CMD_SHAKE:
+      ok = robotCommandShake(command.nodShake);
+      break;
+    case ROBOT_CMD_IDLE_STYLE:
+      if (command.idleStyle.invalidStyle) {
+        sendInvalidStyle(command.idleStyle.style);
+        return;
+      }
+      ok = robotCommandIdleStyle(command.idleStyle);
       break;
     case ROBOT_CMD_NONE:
       sendUnknownCommand(command);

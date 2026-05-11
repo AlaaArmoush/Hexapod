@@ -27,6 +27,13 @@ static RobotCommandType commandTypeFromName(const char* name) {
   if (equalsIgnoreCase(name, "wave")) return ROBOT_CMD_WAVE;
   if (equalsIgnoreCase(name, "body")) return ROBOT_CMD_BODY;
   if (equalsIgnoreCase(name, "gesture")) return ROBOT_CMD_GESTURE;
+  if (equalsIgnoreCase(name, "face")) return ROBOT_CMD_FACE;
+  if (equalsIgnoreCase(name, "blink")) return ROBOT_CMD_BLINK;
+  if (equalsIgnoreCase(name, "lean")) return ROBOT_CMD_LEAN;
+  if (equalsIgnoreCase(name, "look")) return ROBOT_CMD_LOOK;
+  if (equalsIgnoreCase(name, "nod")) return ROBOT_CMD_NOD;
+  if (equalsIgnoreCase(name, "shake")) return ROBOT_CMD_SHAKE;
+  if (equalsIgnoreCase(name, "idle")) return ROBOT_CMD_IDLE_STYLE;
   return ROBOT_CMD_NONE;
 }
 
@@ -60,12 +67,36 @@ static void copyGestureName(GestureCommand& command, const char* name) {
   command.name[sizeof(command.name) - 1] = '\0';
 }
 
+static void copyFaceName(FaceCommand& command, const char* name) {
+  if (!name) name = "idle";
+  strncpy(command.name, name, sizeof(command.name) - 1);
+  command.name[sizeof(command.name) - 1] = '\0';
+}
+
+static bool isLeanDirection(const char* dir) {
+  return equalsIgnoreCase(dir, "left") || equalsIgnoreCase(dir, "right") ||
+         equalsIgnoreCase(dir, "forward") || equalsIgnoreCase(dir, "backward") ||
+         equalsIgnoreCase(dir, "back");
+}
+
+static bool isLookDirection(const char* dir) {
+  return equalsIgnoreCase(dir, "left") || equalsIgnoreCase(dir, "right") ||
+         equalsIgnoreCase(dir, "up") || equalsIgnoreCase(dir, "down") ||
+         equalsIgnoreCase(dir, "center");
+}
+
+static bool isIdleStyle(const char* style) {
+  return equalsIgnoreCase(style, "breathing") || equalsIgnoreCase(style, "sway");
+}
+
 static bool hasRawServoField(JsonDocument& doc) {
   return !doc["servo"].isNull() ||
          !doc["angle"].isNull() ||
          !doc["pwm"].isNull() ||
          !doc["board"].isNull() ||
          !doc["channel"].isNull() ||
+         !doc["pixel"].isNull() ||
+         !doc["bitmap"].isNull() ||
          !doc["raw"].isNull();
 }
 
@@ -83,6 +114,9 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
   strncpy(out.cmdName, cmd, sizeof(out.cmdName) - 1);
   out.cmdName[sizeof(out.cmdName) - 1] = '\0';
   out.type = commandTypeFromName(cmd);
+  if (equalsIgnoreCase(cmd, "idle") && doc["style"].isNull()) {
+    out.type = ROBOT_CMD_NONE;
+  }
   out.rawServoControl = hasRawServoField(doc);
 
   if (out.type == ROBOT_CMD_STOP) {
@@ -149,9 +183,48 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
   } else if (out.type == ROBOT_CMD_GESTURE) {
     copyGestureName(out.gesture, doc["name"] | "idle");
     out.gesture.intensity = doc["intensity"] | 0.5f;
+    if (invalidNumber(doc, "intensity")) out.gesture.intensity = 0.5f;
+  } else if (out.type == ROBOT_CMD_FACE) {
+    copyFaceName(out.face, doc["name"] | "idle");
+    out.face.invalidFace = invalidNumber(doc, "duration_ms");
+    out.face.duration_ms = doc["duration_ms"] | FACE_COMMAND_DURATION_MS;
+    out.face.persistent = doc["persistent"] | false;
+    if (out.face.duration_ms == 0) out.face.invalidFace = true;
+  } else if (out.type == ROBOT_CMD_BLINK) {
+    // No parameters.
+  } else if (out.type == ROBOT_CMD_LEAN) {
+    const char* dir = doc["dir"] | "left";
+    strncpy(out.lean.dir, dir, sizeof(out.lean.dir) - 1);
+    out.lean.dir[sizeof(out.lean.dir) - 1] = '\0';
+    out.lean.invalidDirection = !isLeanDirection(dir);
+    out.lean.invalidNumeric = invalidNumber(doc, "amount_mm") || invalidNumber(doc, "duration_ms");
+    out.lean.amount_mm = doc["amount_mm"] | 20.0f;
+    out.lean.duration_ms = doc["duration_ms"] | 400UL;
+    if (out.lean.amount_mm < 0.0f || out.lean.duration_ms == 0) out.lean.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_LOOK) {
+    const char* dir = doc["dir"] | "center";
+    strncpy(out.look.dir, dir, sizeof(out.look.dir) - 1);
+    out.look.dir[sizeof(out.look.dir) - 1] = '\0';
+    out.look.invalidDirection = !isLookDirection(dir);
+    out.look.invalidNumeric = invalidNumber(doc, "duration_ms");
+    out.look.duration_ms = doc["duration_ms"] | LOOK_DURATION_DEFAULT_MS;
+    out.look.persistent = doc["persistent"] | false;
+    if (out.look.duration_ms == 0) out.look.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_NOD || out.type == ROBOT_CMD_SHAKE) {
+    out.nodShake.invalidNumeric = invalidNumber(doc, "count");
+    out.nodShake.count = doc["count"] | 2;
+    if (out.nodShake.count <= 0) out.nodShake.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_IDLE_STYLE) {
+    const char* style = doc["style"] | "breathing";
+    strncpy(out.idleStyle.style, style, sizeof(out.idleStyle.style) - 1);
+    out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
+    out.idleStyle.invalidStyle = !isIdleStyle(style);
   }
 
-  out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric;
+  out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
+                       out.lean.invalidNumeric || out.look.invalidNumeric ||
+                       out.nodShake.invalidNumeric ||
+                       out.face.invalidFace;
 
   return PARSE_OK;
 }
@@ -193,7 +266,43 @@ static ParseResult parseText(char* line, RobotCommand& out) {
   } else if (out.type == ROBOT_CMD_GESTURE) {
     char* name = strtok(nullptr, " \t\r\n");
     copyGestureName(out.gesture, name ? name : "idle");
+  } else if (out.type == ROBOT_CMD_FACE) {
+    char* name = strtok(nullptr, " \t\r\n");
+    copyFaceName(out.face, name ? name : "idle");
+    char* duration = strtok(nullptr, " \t\r\n");
+    if (duration) out.face.duration_ms = strtoul(duration, nullptr, 10);
+    if (out.face.duration_ms == 0) out.face.invalidFace = true;
+  } else if (out.type == ROBOT_CMD_LEAN) {
+    char* dir = strtok(nullptr, " \t\r\n");
+    strncpy(out.lean.dir, dir ? dir : "left", sizeof(out.lean.dir) - 1);
+    out.lean.dir[sizeof(out.lean.dir) - 1] = '\0';
+    out.lean.invalidDirection = !isLeanDirection(out.lean.dir);
+    char* amount = strtok(nullptr, " \t\r\n");
+    char* duration = strtok(nullptr, " \t\r\n");
+    if (amount) out.lean.amount_mm = atof(amount);
+    if (duration) out.lean.duration_ms = strtoul(duration, nullptr, 10);
+    if (out.lean.amount_mm < 0.0f || out.lean.duration_ms == 0) out.lean.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_LOOK) {
+    char* dir = strtok(nullptr, " \t\r\n");
+    strncpy(out.look.dir, dir ? dir : "center", sizeof(out.look.dir) - 1);
+    out.look.dir[sizeof(out.look.dir) - 1] = '\0';
+    out.look.invalidDirection = !isLookDirection(out.look.dir);
+    char* duration = strtok(nullptr, " \t\r\n");
+    if (duration) out.look.duration_ms = strtoul(duration, nullptr, 10);
+    if (out.look.duration_ms == 0) out.look.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_NOD || out.type == ROBOT_CMD_SHAKE) {
+    char* count = strtok(nullptr, " \t\r\n");
+    if (count) out.nodShake.count = atoi(count);
+    if (out.nodShake.count <= 0) out.nodShake.invalidNumeric = true;
+  } else if (out.type == ROBOT_CMD_IDLE_STYLE) {
+    char* style = strtok(nullptr, " \t\r\n");
+    strncpy(out.idleStyle.style, style ? style : "breathing", sizeof(out.idleStyle.style) - 1);
+    out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
+    out.idleStyle.invalidStyle = !isIdleStyle(out.idleStyle.style);
   }
+
+  out.invalidNumeric = out.lean.invalidNumeric || out.look.invalidNumeric ||
+                       out.nodShake.invalidNumeric || out.face.invalidFace;
 
   return PARSE_OK;
 }

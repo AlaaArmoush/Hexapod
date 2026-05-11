@@ -34,7 +34,14 @@ enum RobotCommandType {
   ROBOT_CMD_ROTATE,
   ROBOT_CMD_WAVE,
   ROBOT_CMD_BODY,
-  ROBOT_CMD_GESTURE
+  ROBOT_CMD_GESTURE,
+  ROBOT_CMD_FACE,
+  ROBOT_CMD_BLINK,
+  ROBOT_CMD_LEAN,
+  ROBOT_CMD_LOOK,
+  ROBOT_CMD_NOD,
+  ROBOT_CMD_SHAKE,
+  ROBOT_CMD_IDLE_STYLE
 };
 
 enum StopMode {
@@ -105,6 +112,39 @@ struct GestureCommand {
   float intensity = 0.5f;
 };
 
+struct FaceCommand {
+  char name[20] = "idle";
+  unsigned long duration_ms = 3500UL;
+  bool persistent = false;
+  bool invalidFace = false;
+};
+
+struct LeanCommand {
+  char dir[12] = "left";
+  float amount_mm = 20.0f;
+  unsigned long duration_ms = 400;
+  bool invalidDirection = false;
+  bool invalidNumeric = false;
+};
+
+struct LookCommand {
+  char dir[12] = "center";
+  unsigned long duration_ms = 1200UL;
+  bool persistent = false;
+  bool invalidDirection = false;
+  bool invalidNumeric = false;
+};
+
+struct NodShakeCommand {
+  int count = 2;
+  bool invalidNumeric = false;
+};
+
+struct IdleStyleCommand {
+  char style[16] = "breathing";
+  bool invalidStyle = false;
+};
+
 struct RobotCommand {
   RobotCommandType type = ROBOT_CMD_NONE;
   char cmdName[20] = "";
@@ -116,6 +156,11 @@ struct RobotCommand {
   WaveCommand wave;
   BodyCommand body;
   GestureCommand gesture;
+  FaceCommand face;
+  LeanCommand lean;
+  LookCommand look;
+  NodShakeCommand nodShake;
+  IdleStyleCommand idleStyle;
 };
 
 struct RobotStatus {
@@ -124,6 +169,9 @@ struct RobotStatus {
   bool rotateRunning = false;
   bool gestureRunning = false;
   const char* activeCmd = "";
+  const char* gesture = "";
+  const char* face = "idle";
+  bool faceTemporary = false;
   const char* dir = "";
   float speed = 0.0f;
   const char* bound = "none";

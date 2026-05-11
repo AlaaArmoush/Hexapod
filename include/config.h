@@ -19,6 +19,16 @@
 #define FIRMWARE_VERSION      1
 #define SERIAL_STARTUP_DELAY_MS 2000
 
+// OLED display
+#define OLED_I2C_ADDRESS  0x3C
+#define OLED_RESET        -1
+#define SCREEN_WIDTH      128
+#define SCREEN_HEIGHT     128
+#define OLED_CONTRAST     0xFF
+#define FACE_COMMAND_DURATION_MS 3500UL
+#define LOOK_DURATION_DEFAULT_MS 1200UL
+#define LOOK_DURATION_MAX_MS     4000UL
+
 // Safe motion limits
 #define GAIT_SPEED_DEFAULT    0.02f
 #define GAIT_SPEED_MAX        0.10f
@@ -33,6 +43,14 @@
 #define GAIT_CM_PER_CYCLE_DEFAULT 5.0f
 #define BODY_OFFSET_MAX       60.0f
 #define ROTATE_CYCLES_MAX     12
+
+// Expressive motion limits
+#define LEAN_AMOUNT_MAX_MM    60.0f
+#define LEAN_DURATION_MAX_MS  2000UL
+#define NOD_COUNT_MAX         6
+#define SHAKE_COUNT_MAX       6
+#define LOOK_BODY_OFFSET_Y    25.0f
+#define LOOK_BODY_OFFSET_X    18.0f
 
 // Sit pose targets copied from the sitting branch global sit() function.
 #define SIT_FEMUR_DELTA   75
