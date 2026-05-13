@@ -24,6 +24,7 @@ static unsigned long tempDurationMs = 0;
 static unsigned char currentGaze = DEFAULT;
 static unsigned long lastCustomDrawMs = 0;
 static unsigned long customFaceStartedAt = 0;
+static char currentFaceText[24] = "";
 
 static bool equalsIgnoreCase(const char* a, const char* b) {
   if (!a || !b) return false;
@@ -371,6 +372,19 @@ static void drawSpeakingToolFace(unsigned long age) {
   display.drawFastHLine(36, 90, 57, SH110X_WHITE);
 }
 
+static void drawFaceTextLabel() {
+  if (currentFaceText[0] == '\0') return;
+
+  display.fillRect(0, 112, SCREEN_WIDTH, 16, SH110X_BLACK);
+  display.setTextSize(1);
+  display.setTextColor(SH110X_WHITE);
+  int textWidth = (int)strlen(currentFaceText) * 6;
+  int x = (SCREEN_WIDTH - textWidth) / 2;
+  if (x < 0) x = 0;
+  display.setCursor(x, 116);
+  display.print(currentFaceText);
+}
+
 static void drawToolFacePlaceholder(FaceState face, unsigned long age) {
   int pulse = 2 + (int)((age / 180) % 4);
   display.drawRoundRect(24, 24, 80, 68, 8, SH110X_WHITE);
@@ -548,6 +562,7 @@ static void drawCustomFace(FaceState face) {
     drawToolFacePlaceholder(face, age);
   }
 
+  drawFaceTextLabel();
   display.display();
 }
 
@@ -758,6 +773,17 @@ void displaySetTemporaryFace(FaceState face, unsigned long durationMs) {
   tempStartedAt = millis();
   tempDurationMs = durationMs;
   applyFace(face);
+}
+
+void displaySetFaceText(const char* text) {
+  if (!text) text = "";
+  strncpy(currentFaceText, text, sizeof(currentFaceText) - 1);
+  currentFaceText[sizeof(currentFaceText) - 1] = '\0';
+
+  if (isCustomFace(currentFace)) {
+    drawCustomFace(currentFace);
+    lastCustomDrawMs = millis();
+  }
 }
 
 void displayRestoreBaseFace() {
