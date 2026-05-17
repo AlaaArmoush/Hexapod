@@ -4,6 +4,7 @@
 #include "robot_controller.h"
 #include "rotate_controller.h"
 #include "serial_protocol.h"
+#include "servo_driver.h"
 #include <Arduino.h>
 
 static const char* commandName(RobotCommandType type) {
@@ -69,6 +70,67 @@ static void sendStatus() {
   Serial.print(",\"last_error\":\"");
   Serial.print(status.lastError);
   Serial.print("\"");
+  Serial.println("}");
+}
+
+static void printHexAddress(uint8_t address) {
+  Serial.print("0x");
+  if (address < 16) Serial.print("0");
+  Serial.print(address, HEX);
+}
+
+static bool i2cAddressPresent(uint8_t address) {
+  Wire.beginTransmission(address);
+  return Wire.endTransmission() == 0;
+}
+
+static void sendI2cLineState() {
+  Serial.print("\"line_state\":{\"sda\":");
+  Serial.print(digitalRead(I2C_SDA) == HIGH ? "\"HIGH\"" : "\"LOW\"");
+  Serial.print(",\"scl\":");
+  Serial.print(digitalRead(I2C_SCL) == HIGH ? "\"HIGH\"" : "\"LOW\"");
+  Serial.print("}");
+}
+
+static void sendI2cScan() {
+  bool first = true;
+  Serial.print("\"i2c\":{\"sda\":");
+  Serial.print(I2C_SDA);
+  Serial.print(",\"scl\":");
+  Serial.print(I2C_SCL);
+  Serial.print(",\"clock_hz\":");
+  Serial.print(I2C_CLOCK_HZ);
+  Serial.print(",\"found\":[");
+  for (uint8_t address = 1; address < 127; address++) {
+    if (!i2cAddressPresent(address)) continue;
+    if (!first) Serial.print(",");
+    Serial.print("\"");
+    printHexAddress(address);
+    Serial.print("\"");
+    first = false;
+  }
+  Serial.print("]}");
+}
+
+static void sendPing() {
+  bool leftFound = pcaBoardPresent(0);
+  bool rightFound = pcaBoardPresent(1);
+  Serial.print("{\"ok\":true,\"cmd\":\"ping\",\"pca\":{\"left\":{\"address\":\"");
+  printHexAddress(pcaAddressForBoard(0));
+  Serial.print("\",\"found\":");
+  Serial.print(leftFound ? "true" : "false");
+  Serial.print(",\"error\":");
+  Serial.print(pcaBoardI2cError(0));
+  Serial.print("},\"right\":{\"address\":\"");
+  printHexAddress(pcaAddressForBoard(1));
+  Serial.print("\",\"found\":");
+  Serial.print(rightFound ? "true" : "false");
+  Serial.print(",\"error\":");
+  Serial.print(pcaBoardI2cError(1));
+  Serial.print("}},");
+  sendI2cLineState();
+  Serial.print(",");
+  sendI2cScan();
   Serial.println("}");
 }
 
@@ -151,7 +213,7 @@ void routeCommand(const RobotCommand& command) {
 
   switch (command.type) {
     case ROBOT_CMD_PING:
-      serialSendOk("ping");
+      sendPing();
       return;
     case ROBOT_CMD_STATUS:
       sendStatus();

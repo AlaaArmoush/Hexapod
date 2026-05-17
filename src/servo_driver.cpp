@@ -1,12 +1,26 @@
 #include "servo_driver.h"
 
-Adafruit_PWMServoDriver servoDriver_0 = Adafruit_PWMServoDriver(0x40);
-Adafruit_PWMServoDriver servoDriver_1 = Adafruit_PWMServoDriver(0x41);
+Adafruit_PWMServoDriver servoDriver_0 = Adafruit_PWMServoDriver(PCA_LEFT_I2C_ADDRESS);
+Adafruit_PWMServoDriver servoDriver_1 = Adafruit_PWMServoDriver(PCA_RIGHT_I2C_ADDRESS);
 
 // Reference angles before trim
 int coxaRef = 90;
 int femurRef = 90;
 int tibiaRef = 90;
+
+uint8_t pcaAddressForBoard(uint8_t board) {
+  return board == 0 ? PCA_LEFT_I2C_ADDRESS : PCA_RIGHT_I2C_ADDRESS;
+}
+
+bool pcaBoardPresent(uint8_t board) {
+  Wire.beginTransmission(pcaAddressForBoard(board));
+  return Wire.endTransmission() == 0;
+}
+
+uint8_t pcaBoardI2cError(uint8_t board) {
+  Wire.beginTransmission(pcaAddressForBoard(board));
+  return Wire.endTransmission();
+}
 
 // --------------------------------------------------
 // Low-level write
