@@ -736,7 +736,7 @@ void displayInit() {
 
   setOledDrive();
   display.setRotation(1);
-  roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 100);
+  roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 24);
   setOledDrive();
   displaySetFace(FACE_IDLE);
 }
