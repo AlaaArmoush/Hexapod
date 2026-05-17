@@ -24,4 +24,7 @@ extern int tibiaRef;
 // -----------------------------------------
 void servoWriteRaw(uint8_t board, uint8_t ch, int angle);
 void servoNeutral(uint8_t board, uint8_t ch, int trim);
+uint8_t pcaAddressForBoard(uint8_t board);
+bool pcaBoardPresent(uint8_t board);
+uint8_t pcaBoardI2cError(uint8_t board);
 void stand();
