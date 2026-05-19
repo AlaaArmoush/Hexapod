@@ -6,14 +6,14 @@ Left Front:
   Tibia: 13 | Trim:   8
 
 Left Middle:
-  Coxa:  11 | Trim:  16
-  Femur: 10 | Trim:   4
-  Tibia:  9 | Trim:  -5
+  Coxa:  4 | Trim:  16
+  Femur: 5 | Trim:   4
+  Tibia: 6 | Trim:  -5
 
 Left Back:
-  Coxa:   7 | Trim:  12
-  Femur:  6 | Trim:   3
-  Tibia:  5 | Trim:  10
+  Coxa:   0 | Trim:  12
+  Femur:  1 | Trim:   -6
+  Tibia:  2 | Trim:  10
   
 
 Address 0x41 (Right Side)
