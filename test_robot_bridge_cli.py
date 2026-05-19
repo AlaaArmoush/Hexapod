@@ -167,6 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", default="/dev/ttyUSB0")
     parser.add_argument("--baudrate", type=int, default=115200)
     parser.add_argument("--timeout", type=float, default=2.0)
+    parser.add_argument("--ready-timeout", type=float, default=5.0)
+    parser.add_argument("--skip-ready", action="store_true")
     parser.add_argument("--no-wait", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -194,7 +196,8 @@ def main(argv: list[str] | None = None) -> int:
     bridge = SerialRobotBridge(port=args.port, baudrate=args.baudrate, timeout=args.timeout)
     try:
         bridge.connect()
-        _read_until_ready(bridge, args.timeout, args.verbose)
+        if not args.skip_ready:
+            _read_until_ready(bridge, args.ready_timeout, args.verbose)
         print(f">>> {payload}")
         bridge.send_command(command)
         if not args.no_wait:
