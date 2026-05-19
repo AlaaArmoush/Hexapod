@@ -1,3 +1,4 @@
+from .serial_robot_bridge import SerialRobotBridge
 from .bridge_errors import (
     AmbiguousCommandError,
     BridgeError,
@@ -15,5 +16,6 @@ __all__ = [
     "FirmwareError",
     "InvalidParameterError",
     "NotConnectedError",
+    "SerialRobotBridge",
     "TimeoutError",
 ]
