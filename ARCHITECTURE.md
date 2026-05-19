@@ -174,6 +174,40 @@ Raw servo control is explicitly rejected with `raw_servo_control_not_allowed`.
 That is a safety and architecture decision: high-level commands are stable,
 hardware mappings and trims are internal.
 
+## Host Python Bridge
+
+Files:
+
+- `bridge/bridge_errors.py`
+- `bridge/response_parser.py`
+- `bridge/robot_commands.py`
+- `bridge/serial_robot_bridge.py`
+- `test_robot_bridge_cli.py`
+
+The Python bridge is the supported host-side entry point for programs running
+on a Raspberry Pi or Linux laptop. It does not plan behavior and it does not
+own hardware details. Its job is to build validated semantic command dicts,
+send compact newline-terminated JSON over USB serial, and parse firmware JSON
+lines back into structured Python responses.
+
+This bridge preserves the same safety boundary as the firmware:
+
+- command builders expose semantic actions such as `stand`, `gait`, `rotate`,
+  `face`, and `look`
+- local validation rejects invalid directions, ambiguous motion bounds, and
+  unsafe parameter ranges before serial write
+- `send_command()` rejects raw hardware fields even if a caller bypasses the
+  builders
+- non-JSON debug text from the firmware is parsed as a harmless raw line
+
+The CLI in `test_robot_bridge_cli.py` is primarily for smoke testing and manual
+operation. `--dry-run` validates and prints the exact JSON without opening a
+serial port; hardware runs wait for the firmware `ready` event before sending.
+
+Future LLM or voice layers should call `SerialRobotBridge` methods or a
+deterministic executor built on top of them. They should not write directly to
+serial and should not construct raw JSON strings themselves.
+
 ## Robot Controller
 
 Files:
