@@ -98,6 +98,40 @@ def test_cli_connects_waits_for_ready_sends_and_prints_response(monkeypatch, cap
     assert '<<< {"ok":true,"cmd":"stand"}' in captured.out
 
 
+def test_cli_uses_separate_ready_timeout(monkeypatch):
+    install_fake_bridge(
+        monkeypatch,
+        [
+            parsed('{"event":"ready","firmware":"hexapod"}'),
+            parsed('{"ok":true,"cmd":"stand"}'),
+        ],
+    )
+    ready_timeouts = []
+
+    def fake_read_until_ready(bridge, timeout, verbose):
+        ready_timeouts.append(timeout)
+        return bridge.read_json_line()
+
+    monkeypatch.setattr(test_robot_bridge_cli, "_read_until_ready", fake_read_until_ready)
+
+    exit_code = test_robot_bridge_cli.main(["--timeout", "0.1", "--ready-timeout", "7.5", "stand"])
+
+    assert exit_code == 0
+    assert ready_timeouts == [7.5]
+
+
+def test_skip_ready_sends_without_waiting_for_ready(monkeypatch, capsys):
+    install_fake_bridge(monkeypatch, [parsed('{"ok":true,"cmd":"ping"}')])
+
+    exit_code = test_robot_bridge_cli.main(["--skip-ready", "ping"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert FakeBridge.instances[0].sent == [{"cmd": "ping"}]
+    assert '<<< {"event":"ready"' not in output
+    assert '>>> {"cmd":"ping"}' in output
+
+
 def test_no_wait_sends_without_waiting_for_command_response(monkeypatch, capsys):
     install_fake_bridge(monkeypatch, [parsed('{"event":"ready","firmware":"hexapod"}')])
 
