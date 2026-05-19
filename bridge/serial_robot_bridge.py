@@ -8,7 +8,26 @@ import serial
 
 from .bridge_errors import ConnectionError, FirmwareError, InvalidParameterError, NotConnectedError, TimeoutError
 from .response_parser import ParsedResponse, parse_line
-from .robot_commands import FORBIDDEN_FIELDS
+from .robot_commands import (
+    FORBIDDEN_FIELDS,
+    build_blink,
+    build_body,
+    build_face,
+    build_gait,
+    build_gesture,
+    build_idle,
+    build_lean,
+    build_look,
+    build_nod,
+    build_ping,
+    build_rotate,
+    build_shake,
+    build_sit,
+    build_stand,
+    build_status,
+    build_stop,
+    build_wave,
+)
 
 
 class SerialRobotBridge:
@@ -101,6 +120,85 @@ class SerialRobotBridge:
                 return response
         raise TimeoutError(f"timed out waiting for status response after {timeout:.2f}s")
 
+    def ping(self) -> ParsedResponse:
+        return self._send_and_wait(build_ping(), "ping")
+
+    def status(self) -> ParsedResponse:
+        self.send_command(build_status())
+        return self.wait_for_status()
+
+    def stand(self) -> ParsedResponse:
+        return self._send_and_wait(build_stand(), "stand")
+
+    def sit(self) -> ParsedResponse:
+        return self._send_and_wait(build_sit(), "sit")
+
+    def stop(self, mode: str = "smooth") -> ParsedResponse:
+        return self._send_and_wait(build_stop(mode), "stop")
+
+    def emergency_stop(self) -> ParsedResponse:
+        return self.stop(mode="emergency")
+
+    def gait(
+        self,
+        dir: str = "forward",
+        speed: float = 0.25,
+        duration_ms: int | None = None,
+        steps: int | None = None,
+        distance_cm: float | None = None,
+        step_len: float | None = None,
+        step_ht: float | None = None,
+    ) -> ParsedResponse:
+        command = build_gait(
+            dir=dir,
+            speed=speed,
+            duration_ms=duration_ms,
+            steps=steps,
+            distance_cm=distance_cm,
+            step_len=step_len,
+            step_ht=step_ht,
+        )
+        return self._send_and_wait(command, "gait")
+
+    def rotate(
+        self,
+        dir: str = "left",
+        cycles: int | None = None,
+        degrees: int | None = None,
+        continuous: bool = False,
+    ) -> ParsedResponse:
+        return self._send_and_wait(build_rotate(dir=dir, cycles=cycles, degrees=degrees, continuous=continuous), "rotate")
+
+    def wave(self, leg: str = "RF", count: int = 2) -> ParsedResponse:
+        return self._send_and_wait(build_wave(leg=leg, count=count), "wave")
+
+    def gesture(self, name: str = "happy", intensity: float = 0.5) -> ParsedResponse:
+        return self._send_and_wait(build_gesture(name=name, intensity=intensity), "gesture")
+
+    def body(self, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> ParsedResponse:
+        return self._send_and_wait(build_body(x=x, y=y, z=z), "body")
+
+    def face(self, name: str = "happy", duration_ms: int | None = None, persistent: bool = False) -> ParsedResponse:
+        return self._send_and_wait(build_face(name=name, duration_ms=duration_ms, persistent=persistent), "face")
+
+    def blink(self) -> ParsedResponse:
+        return self._send_and_wait(build_blink(), "blink")
+
+    def idle(self, style: str = "breathing") -> ParsedResponse:
+        return self._send_and_wait(build_idle(style=style), "idle")
+
+    def lean(self, dir: str = "left", amount_mm: float = 20.0, duration_ms: int = 400) -> ParsedResponse:
+        return self._send_and_wait(build_lean(dir=dir, amount_mm=amount_mm, duration_ms=duration_ms), "lean")
+
+    def look(self, dir: str = "center", duration_ms: int | None = None, persistent: bool = False) -> ParsedResponse:
+        return self._send_and_wait(build_look(dir=dir, duration_ms=duration_ms, persistent=persistent), "look")
+
+    def nod(self, count: int = 2) -> ParsedResponse:
+        return self._send_and_wait(build_nod(count=count), "nod")
+
+    def shake(self, count: int = 2) -> ParsedResponse:
+        return self._send_and_wait(build_shake(count=count), "shake")
+
     def _validate_safe_command(self, command_dict: dict[str, Any]) -> None:
         if not isinstance(command_dict, dict):
             raise InvalidParameterError(f"command must be a dict, got {command_dict!r}")
@@ -108,6 +206,10 @@ class SerialRobotBridge:
         forbidden_path = self._find_forbidden_field(command_dict)
         if forbidden_path is not None:
             raise InvalidParameterError(f"command contains forbidden raw-control field: {forbidden_path}")
+
+    def _send_and_wait(self, command: dict[str, Any], cmd: str) -> ParsedResponse:
+        self.send_command(command)
+        return self.wait_for_ok(cmd)
 
     def _find_forbidden_field(self, value: Any, path: str = "") -> str | None:
         if isinstance(value, dict):
