@@ -1,195 +1,129 @@
 # Firmware Architecture
 
-This firmware uses a command-driven architecture. The ESP32 owns low-level
-timing, motion state, inverse kinematics, OLED expression state, and servo
-control. A laptop, Raspberry Pi, or AI bridge sends high-level newline-delimited
-serial commands such as `stand`, `gait`, `rotate`, `face`, `look`, `nod`, and
-`idle`.
+This firmware is the onboard nervous system for the hexapod. The host computer
+speaks in intent - stand, gait, rotate, look, nod, blink, idle - and the ESP32
+turns that intent into coordinated motion, expression, inverse kinematics, and
+PCA9685 servo writes.
 
-The host should describe intent, not servo angles or raw display pixels. The
-firmware translates semantic commands into safe body motion, face animation, IK,
-and PCA9685 writes.
+The most important architectural rule is that the robot stays alive to new
+input while it is moving. A gait, gesture, sit transition, rotate cycle, or OLED
+animation must not monopolize the CPU. Long behaviors are represented as small
+state machines that advance a little on each pass through `loop()`.
 
-## Command Flow
+The host should never send raw servo angles or display pixels during normal
+operation. It describes what the robot should do, and the firmware owns the
+translation into safe hardware-level action.
 
-Motion commands follow this path:
+## System Shape
+
+At a high level, the firmware is split into five cooperating domains:
+
+- protocol: receive, parse, validate, and acknowledge host commands
+- orchestration: own robot mode and decide which behavior is active
+- behavior controllers: advance gait, rotate, sit, body, and expressive motions
+- presentation: maintain persistent and temporary OLED face state
+- hardware: solve IK, apply trims, and write PCA9685 PWM outputs
+
+The flow deliberately narrows as it approaches hardware:
 
 ```text
-Serial line
-  -> serial_protocol.cpp
-  -> command_parser.cpp
-  -> command_router.cpp
-  -> robot_controller.cpp
-  -> motion controller / pose helper
-  -> ik.cpp
-  -> servo_driver.cpp
+host intent
+  -> serial protocol
+  -> parser
+  -> router
+  -> robot controller
+  -> behavior controller / pose helper
+  -> inverse kinematics
+  -> servo driver
   -> PCA9685 boards
+  -> servos
 ```
 
-Face/display commands follow this path:
+Face and expression commands take a parallel path:
 
 ```text
-Serial line
-  -> serial_protocol.cpp
-  -> command_parser.cpp
-  -> command_router.cpp
-  -> display_controller.cpp
-  -> Adafruit_SH1107 / RoboEyes / pixel-art drawing
+host intent
+  -> serial protocol
+  -> parser
+  -> router / robot controller
+  -> display controller
+  -> RoboEyes or custom pixel-art renderer
   -> SH1107 OLED
 ```
 
-Many commands touch both paths. For example, `look`, `nod`, `shake`, `gait`, and
-`wave` move the body and also set a matching OLED face.
+Many commands intentionally touch both paths. `gait` moves the legs and switches
+the face to `walking`. `rotate` uses `rotating`. `look`, `nod`, `shake`, `wave`,
+and named gestures combine body motion with a matching temporary expression.
 
-## Layers
+## Non-Blocking Core
 
-### Hardware
+`src/main.cpp` is intentionally small because it is the scheduler for the whole
+robot:
 
-Files:
+```cpp
+void loop() {
+  serialProtocolUpdate();
+  robotUpdate();
 
-- `include/config.h`
-- `include/servo_driver.h`
-- `src/servo_driver.cpp`
+  static unsigned long lastDisplayUpdateMs = 0;
+  unsigned long now = millis();
+  unsigned long displayInterval = gaitIsRunning()
+      ? OLED_GAIT_FRAME_INTERVAL_MS
+      : OLED_FRAME_INTERVAL_MS;
+  if (now - lastDisplayUpdateMs >= displayInterval) {
+    lastDisplayUpdateMs = now;
+    displayUpdate();
+  }
 
-Responsibilities:
-
-- I2C pins
-- PCA9685 setup constants
-- servo channels
-- trim offsets
-- safe motion/display tuning constants
-- raw servo angle writes used internally by low-level code
-
-The host command API should not expose raw servo writes.
-
-### Kinematics
-
-Files:
-
-- `include/ik.h`
-- `src/ik.cpp`
-
-Responsibilities:
-
-- leg geometry
-- leg mount table
-- IK solving
-- writing IK results to the servos
-
-`legIK()` solves and writes. `solveLegIK()` solves without writing.
-
-### Poses
-
-Files:
-
-- `include/poses.h`
-- `src/poses.cpp`
-
-Responsibilities:
-
-- stand
-- sit
-- body offset
-- simple non-blocking pose transitions
-
-The sit pose uses the same target deltas as the old `sitting` branch global
-`sit()` function.
-
-### Motion Controllers
-
-Files:
-
-- `include/gait_controller.h`
-- `src/gait_controller.cpp`
-- `include/rotate_controller.h`
-- `src/rotate_controller.cpp`
-- `include/gesture_controller.h`
-- `src/gesture_controller.cpp`
-
-Responsibilities:
-
-- start/stop/update motion behaviors
-- clamp command parameters
-- avoid blocking the serial loop
-- wrap older motion code where useful
-- implement expressive body motions
-
-`gesture_controller` now owns more than named gestures and wave. It also handles
-expressive motions:
-
-- `lean`
-- `look`
-- `nod`
-- `shake`
-- `idle breathing`
-- `idle sway`
-- named gestures such as `happy`, `curious`, `scared`, `sleepy`, and
-  `listening`
-
-Rule: motion controllers should advance a small amount per `robotUpdate()` call.
-They should not sit in long `delay()` loops.
-
-### Display / Expression Controller
-
-Files:
-
-- `include/display_controller.h`
-- `src/display_controller.cpp`
-- `lib/RoboEyes/FluxGarage_RoboEyes.h`
-
-Responsibilities:
-
-- initialize the SH1107 OLED
-- own persistent and temporary face state
-- update RoboEyes non-blockingly from `displayUpdate()`
-- draw custom animated pixel-art faces
-- parse and expose semantic face names
-- support gaze direction and blink events
-- restore temporary faces back to the base face
-
-The display controller supports two kinds of expressions:
-
-- RoboEyes-based faces, such as `idle`, `neutral`, `happy`, `curious`,
-  `scared`, `sleepy`, `listening`, `walking`, `rotating`, and `waving`
-- custom pixel-art faces, such as `error`, `love`, `surprised`, `starstruck`,
-  `dizzy`, `confused`, `sad`, `sleep`, `loading`, `alert`, `low_battery`,
-  `boop`, and `scan`
-
-Direct expressive face commands are temporary by default. `idle` and `neutral`
-are persistent base faces. The host can request persistence with:
-
-```json
-{"cmd":"face","name":"surprised","persistent":true}
+#if ENABLE_DEBUG_MENU
+  debugMenuUpdate();
+#endif
+  delay(5);
+}
 ```
 
-### Robot Controller
+This loop has three contracts:
 
-Files:
+- `serialProtocolUpdate()` must keep accepting newline-delimited commands.
+- `robotUpdate()` must advance only the active behavior and then return.
+- `displayUpdate()` must draw one frame or service RoboEyes and then return.
 
-- `include/robot_controller.h`
-- `src/robot_controller.cpp`
+This is cooperative multitasking. There is no RTOS task scheduler here. Each
+controller carries its own state, timestamps, phase counters, and completion
+flags. The global `loop()` gives each subsystem a short turn.
 
-Responsibilities:
+That design makes these interactions possible:
 
-- own the current `RobotMode`
-- stop conflicting motions before starting a new one
-- expose a clean API such as `robotCommandStand()` and `robotCommandGait()`
-- update active controllers from the main loop
-- couple robot mode and gesture state to OLED face state
+- `status` can be requested while a gait is walking.
+- `stop` can interrupt a rotate or gesture.
+- temporary faces can expire while motion continues.
+- OLED updates can be throttled during gait so I2C display traffic does not
+  compete too aggressively with servo timing.
+- long motions report `done` events only after their controller reaches a
+  natural completion point.
 
-The robot controller is the bridge between motion and expression. Examples:
+Short startup delays and the tiny `delay(5)` at the end of `loop()` are allowed.
+Long command handlers and behavior controllers should not contain blocking
+`delay()` loops.
 
-- idle mode sets the idle face
-- standing mode sets the neutral face
-- sitting mode sets the sleepy face
-- gait uses the walking face while active
-- rotate uses the rotating face while active
-- wave uses the waving face while active
-- gesture names map to matching faces
-- `nod`, `shake`, `lean`, and `look` set temporary or persistent expressive
-  faces
+## Startup
 
-### Protocol
+Startup is owned by `setup()` in `src/main.cpp`:
+
+1. Open serial at `115200`.
+2. Bring up I2C on `I2C_SDA` / `I2C_SCL`.
+3. Probe the left and right PCA9685 boards.
+4. Reinitialize I2C after probing, because the ESP32 I2C peripheral can lock
+   after a NACK.
+5. Initialize both PCA9685 servo drivers.
+6. Initialize the OLED display controller.
+7. Initialize robot mode state.
+8. Send the serial protocol `ready` event.
+9. Optionally stand on boot if `AUTO_STAND_ON_BOOT` is enabled.
+
+The current PlatformIO target is `esp32dev` using the Arduino framework.
+
+## Protocol Boundary
 
 Files:
 
@@ -201,37 +135,281 @@ Files:
 - `include/command_router.h`
 - `src/command_router.cpp`
 
-Responsibilities:
+The protocol layer is the border between the host and the robot. It reads one
+newline-terminated command at a time into a fixed-size buffer, parses JSON first,
+falls back to simple text commands, and returns JSON responses.
 
-- read newline-terminated serial commands
-- parse JSON commands first
-- support simple fallback text commands
-- validate directions, numeric fields, bounds, and semantic face names
-- reject raw servo/display-control fields
-- route commands to `robot_controller` and `display_controller`
-- return JSON ACK/error/status messages
+Accepted command families:
+
+- posture: `stand`, `sit`, `stop`
+- locomotion: `gait`, `rotate`
+- direct body pose: `body`
+- gestures: `wave`, `gesture`
+- expressive body: `lean`, `look`, `nod`, `shake`, `idle`
+- display: `face`, `blink`
+- diagnostics: `ping`, `status`
 
 Preferred command style:
 
 ```json
 {"cmd":"stand"}
 {"cmd":"gait","dir":"forward","speed":0.02,"steps":2}
+{"cmd":"rotate","dir":"left","cycles":2}
 {"cmd":"face","name":"starstruck"}
 {"cmd":"look","dir":"left","duration_ms":1200}
 {"cmd":"idle","style":"breathing"}
 {"cmd":"stop"}
 ```
 
-Important command families:
+The parser validates:
 
-- posture: `stand`, `sit`, `stop`
-- locomotion: `gait`, `rotate`
-- gestures: `wave`, `gesture`
-- expressive body: `lean`, `look`, `nod`, `shake`, `idle` with `style`
-- display: `face`, `blink`
-- diagnostics: `ping`, `status`
+- command names
+- directions
+- numeric bounds
+- mutually exclusive motion bounds such as `steps` versus `duration_ms`
+- semantic face names
+- raw hardware control attempts
 
-The `status` response includes face state:
+Raw servo control is explicitly rejected with `raw_servo_control_not_allowed`.
+That is a safety and architecture decision: high-level commands are stable,
+hardware mappings and trims are internal.
+
+## Robot Controller
+
+Files:
+
+- `include/robot_controller.h`
+- `src/robot_controller.cpp`
+
+The robot controller is the conductor. It owns the current `RobotMode`, stops
+conflicting behaviors before starting a new one, updates the active controller,
+and couples motion state to face state.
+
+Robot modes:
+
+- `idle`
+- `standing`
+- `sitting`
+- `gait`
+- `rotating`
+- `waving`
+- `gesture`
+- `body`
+
+Only the active mode is advanced in `robotUpdate()`. For example, gait mode calls
+`gaitUpdate()`, rotate mode calls `rotateUpdate()`, and gesture mode calls
+`gestureUpdate()`. When a controller reports completion, the robot returns to
+standing and emits a `done` event where appropriate.
+
+The controller also owns expression coupling:
+
+- idle mode sets `idle`
+- standing mode sets `neutral`
+- sitting mode sets `sleepy`
+- gait uses temporary `walking`
+- rotate uses temporary `rotating`
+- wave uses temporary `waving`
+- named gestures choose matching faces such as `happy`, `curious`, `scared`,
+  `sleepy`, and `listening`
+- `look`, `nod`, `shake`, and `lean` use short-lived expressive faces unless the
+  command explicitly asks for persistence
+
+This layer is also where user-visible status is assembled. `robotGetStatus()`
+reports mode, active command, gait progress, rotate progress, gesture name,
+current face, temporary-face state, interruptibility, and the last error string.
+
+## Motion Controllers
+
+Files:
+
+- `include/gait_controller.h`
+- `src/gait_controller.cpp`
+- `include/rotate_controller.h`
+- `src/rotate_controller.cpp`
+- `include/gesture_controller.h`
+- `src/gesture_controller.cpp`
+
+Controllers are small state machines. Their shape is consistent:
+
+```text
+start(command)
+  -> validate and clamp parameters
+  -> store command/state
+  -> mark running
+
+update()
+  -> advance one step based on millis(), phase, or cycle counters
+  -> write the current pose
+  -> mark done when complete
+
+stop()
+  -> return to a safe pose or neutral controller state
+  -> clear running
+```
+
+### Gait
+
+`gait_controller` wraps the tripod gait engine in `src/tripod_gait.cpp`.
+
+Responsibilities:
+
+- map named directions to normalized X/Y vectors
+- clamp speed, step length, step height, duration, steps, and distance
+- support continuous, duration-bound, step-bound, and distance-bound walking
+- count completed tripod cycles
+- stop smoothly when the requested bound is reached
+
+The lower-level tripod gait advances phase on each update, alternates lift
+groups, computes foot offsets, and calls `legIK()` for each leg.
+
+### Rotate
+
+`rotate_controller` wraps the older rotate-loop implementation. It accepts left
+or right rotation, supports continuous rotation, converts degrees into rough
+cycle counts, tracks completed cycles, and stops once the target is reached.
+
+### Gestures And Expressive Body Motion
+
+`gesture_controller` handles both explicit gestures and subtle body language:
+
+- `wave`
+- named gestures: `happy`, `curious`, `scared`, `sleepy`, `listening`, `idle`
+- `lean`
+- `look`
+- `nod`
+- `shake`
+- idle `breathing`
+- idle `sway`
+
+These motions use elapsed time, sine waves, interpolation steps, and IK body
+offsets instead of blocking waits. A gesture may run for 300 ms or indefinitely,
+but it still gives control back to `loop()` on every update.
+
+## Poses
+
+Files:
+
+- `include/poses.h`
+- `src/poses.cpp`
+
+Pose helpers are the simplest motion layer:
+
+- `poseStand()` writes a neutral IK standing pose.
+- `poseSitStart()` begins a sit transition.
+- `poseSitUpdate()` advances the sit transition using `LOOP_UPDATE_MS` and
+  `SIT_INTERP_STEP`.
+- `poseBodyOffset()` applies the same body offset to all six legs through IK.
+
+The sit pose keeps compatibility with the old sitting branch by using the same
+femur and tibia target deltas.
+
+## Kinematics
+
+Files:
+
+- `include/ik.h`
+- `src/ik.cpp`
+
+The IK layer turns body-relative foot offsets into servo angles. It owns:
+
+- leg geometry
+- leg mount descriptors
+- mirrored left/right conventions
+- coxa, femur, and tibia angle calculation
+- clamping to the 0-180 degree servo range
+
+`solveLegIK()` calculates a solution without writing hardware. `legIK()`
+calculates and writes the solution to the appropriate PCA9685 channels with
+per-joint trims applied.
+
+## Servo Hardware
+
+Files:
+
+- `include/config.h`
+- `include/servo_driver.h`
+- `src/servo_driver.cpp`
+
+The hardware layer owns the physical mapping:
+
+- I2C pins and clock
+- PCA9685 addresses
+- servo PWM frequency
+- channel assignments for all 18 joints
+- reference angles
+- trim offsets
+- raw PWM conversion
+- PCA board presence checks
+
+`servoWriteRaw()` is intentionally low-level. It clamps angles, converts degrees
+to PCA9685 PWM ticks using the configured baseline, and writes to the selected
+board. Normal host commands should reach it only through poses, controllers, or
+IK.
+
+## Display And Expression
+
+Files:
+
+- `include/display_controller.h`
+- `src/display_controller.cpp`
+- `lib/RoboEyes/FluxGarage_RoboEyes.h`
+
+The display controller owns the SH1107 OLED and the robot's visible emotional
+state. It supports two rendering families:
+
+- RoboEyes faces: `idle`, `neutral`, `happy`, `curious`, `scared`, `sleepy`,
+  `listening`, `walking`, `rotating`, `waving`
+- custom pixel-art faces: `error`, `love`, `surprised`, `starstruck`, `dizzy`,
+  `confused`, `sad`, `sleep`, `loading`, `alert`, `low_battery`, `boop`,
+  `scan`, `clock`, `calendar`, `search`, `camera`, `memory`, `timer`,
+  `reminder`, `battery`, `system`, `wifi`, `microphone`, `speaking`, and
+  `success`
+
+The controller tracks:
+
+- current face
+- persistent base face
+- temporary face state
+- temporary face expiration time
+- optional face text
+- gaze direction
+- blink events
+- custom animation frame timing
+
+Direct `face` commands are temporary by default. `idle` and `neutral` are
+persistent base faces, and any face can be made persistent with:
+
+```json
+{"cmd":"face","name":"surprised","persistent":true}
+```
+
+`displayUpdate()` is non-blocking. Temporary faces expire by comparing
+`millis()` against their start time. Custom faces redraw at their own frame
+interval. RoboEyes is allowed to advance one frame when called.
+
+## Status And Events
+
+The firmware speaks back in compact JSON.
+
+Ready event:
+
+```json
+{"event":"ready","firmware":"hexapod","protocol":1}
+```
+
+Simple ACK:
+
+```json
+{"ok":true,"cmd":"stand"}
+```
+
+Error:
+
+```json
+{"ok":false,"error":"invalid_direction","value":"sideways"}
+```
+
+Representative status response:
 
 ```json
 {
@@ -241,14 +419,37 @@ The `status` response includes face state:
   "active_cmd": "look",
   "gesture": "look",
   "face": "listening",
-  "face_temporary": true
+  "face_temporary": true,
+  "interruptible": true
 }
 ```
 
-The real response includes additional motion fields for gait, rotate, duration,
-steps, distance, and errors.
+When a bounded motion finishes, the robot emits a `done` event:
 
-### Legacy Debug Tests
+```json
+{"event":"done","cmd":"gait","state":"standing"}
+```
+
+The real `status` response includes additional motion fields for gait, rotate,
+duration, steps, distance, and errors when they are relevant.
+
+## Safety Model
+
+The firmware's safety model is simple and strict:
+
+- hosts command intent, not servo angles
+- parsers reject malformed and unsafe fields early
+- controllers clamp accepted parameters against `config.h` limits
+- the robot controller stops conflicting behaviors before starting a new one
+- servo writes are clamped to 0-180 degrees
+- IK applies trim offsets in one central place
+- long behaviors must stay interruptible through the main loop
+
+This does not replace mechanical safety. Power, servo load, joint limits,
+calibration, and physical clearances still matter. The architecture only makes
+the software path predictable and easier to reason about.
+
+## Legacy Debug Tests
 
 Files include:
 
@@ -260,27 +461,26 @@ Files include:
 - `src/wave.cpp`
 - `src/menu.cpp`
 
-These are kept for calibration/debug workflows. The command protocol is the
-preferred control path for Python or AI bridge work.
+These files preserve calibration and debug workflows. They may contain older
+interactive loops and small waits that are acceptable in test modes. The command
+protocol is the preferred control path for host, Python, or AI bridge work.
 
-## Main Loop
+## Timing Rules For New Code
 
-`src/main.cpp` is intentionally small:
+When adding behavior, follow these rules:
 
-```cpp
-void loop() {
-  serialProtocolUpdate();
-  robotUpdate();
-  displayUpdate();
-#if ENABLE_DEBUG_MENU
-  debugMenuUpdate();
-#endif
-  delay(5);
-}
-```
+1. Command parsing may validate and store intent, but it should not move the
+   robot.
+2. Routing may start a behavior, but it should not run the full behavior.
+3. Controllers should expose `start`, `update`, `stop`, `isRunning`, and
+   `isDone` style APIs when the behavior lasts longer than one loop pass.
+4. Use `millis()` and stored timestamps for timing.
+5. Advance one pose, phase, or frame per `update()` call.
+6. Return quickly so serial input and stop/status commands remain responsive.
+7. Emit `done` from the orchestration layer when a behavior completes.
 
-The important property is that the loop keeps running. Commands like `status`
-or `stop` should still be handled while a motion or OLED animation is active.
+Blocking code belongs only in deliberate diagnostics, startup pauses, or tiny
+hardware-settle points.
 
 ## Adding A New Command
 
@@ -290,10 +490,10 @@ Use this order:
 2. Parse the command in `src/command_parser.cpp`.
 3. Route it in `src/command_router.cpp`.
 4. Add a robot API function in `robot_controller` if it affects motion or mode.
-5. Implement the actual motion in a controller or pose helper.
-6. Add or update display coupling in `robot_controller` or
-   `display_controller` if the command should affect expression.
-7. Add test commands to `tests_serial_monitor.txt`.
+5. Implement long-running motion in a controller with non-blocking `update()`.
+6. Add display coupling in `robot_controller` or `display_controller` if the
+   command should affect expression.
+7. Add serial monitor examples or hardware notes for the new command.
 8. Build with `pio run`.
 
 ## Adding A New Face
@@ -305,7 +505,7 @@ Use this order:
 3. Add parser support in `displayParseFaceName()`.
 4. Implement the expression in `applyFace()` or `drawCustomFace()`.
 5. If it is pixel-art or custom animated, include it in `isCustomFace()`.
-6. Add a serial test command to `tests_serial_monitor.txt`.
+6. Add a serial monitor example.
 7. Build with `pio run`.
 
 Prefer semantic face names. Do not add a host command that sends arbitrary
