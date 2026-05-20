@@ -1,0 +1,64 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2712";
+
+    /*
+     * Hexapod 4x INMP441 microphone array for Raspberry Pi 5.
+     *
+     * Wiring:
+     *   GPIO18 / pin 12 = I2S0_SCLK / BCLK
+     *   GPIO19 / pin 35 = I2S0_WS / LRCLK
+     *   GPIO20 / pin 38 = I2S0_SDI0 -> pair 1 left/right
+     *   GPIO22 / pin 15 = I2S0_SDI1 -> pair 2 left/right
+     *
+     * GPIO21 is kept in the I2S0 group as SDO0. It is useful later
+     * if adding I2S output such as MAX98357A.
+     *
+     * Avoids UPS HAT occupied physical pins:
+     *   3, 5, 25, 31, 36
+     */
+
+    fragment@0 {
+        target = <&rp1_i2s0_18_21>;
+        __overlay__ {
+            function = "i2s0";
+            pins = "gpio18", "gpio19", "gpio20", "gpio21", "gpio22";
+            bias-disable;
+        };
+    };
+
+    fragment@1 {
+        target = <&i2s_clk_producer>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            hexapod_4mic_codec: hexapod-4mic-codec {
+                compatible = "dmic-codec";
+                #sound-dai-cells = <0>;
+                status = "okay";
+            };
+
+            hexapod_4mic_soundcard: hexapod-4mic-soundcard {
+                compatible = "simple-audio-card";
+                simple-audio-card,name = "hexapod-4mic";
+                simple-audio-card,format = "i2s";
+                status = "okay";
+
+                simple-audio-card,cpu {
+                    sound-dai = <&i2s_clk_producer>;
+                };
+
+                simple-audio-card,codec {
+                    sound-dai = <&hexapod_4mic_codec>;
+                };
+            };
+        };
+    };
+};
