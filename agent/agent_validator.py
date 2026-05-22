@@ -13,8 +13,8 @@ from .agent_errors import (
 from .prompts import ALLOWED_EMOTIONS, ALLOWED_FACES, ALLOWED_TOOLS
 
 
-ALLOWED_TOP_LEVEL_FIELDS = {"version", "kind", "response", "tools", "actions", "safety"}
-ALLOWED_KINDS = {"final_response", "tool_request", "robot_request", "mixed_request"}
+ALLOWED_TOP_LEVEL_FIELDS = {"version", "kind", "response", "tools", "safety"}
+ALLOWED_KINDS = {"final_response", "tool_request"}
 UNSAFE_KEYWORDS = {
     "servo",
     "raw_servo",
@@ -96,10 +96,6 @@ def validate_agent_plan(plan: dict) -> ValidatedAgentPlan:
         if name not in ALLOWED_TOOLS:
             raise UnknownToolError(f"Unknown tool: {name}")
 
-    actions = plan.get("actions", [])
-    if not isinstance(actions, list):
-        raise AgentPlanValidationError("actions must be a list")
-
     return ValidatedAgentPlan(
         version=1,
         kind=kind,
@@ -107,7 +103,7 @@ def validate_agent_plan(plan: dict) -> ValidatedAgentPlan:
         emotion=emotion,
         face=face,
         tools=tools,
-        actions=actions,
+        actions=[],
     )
 
 

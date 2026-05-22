@@ -107,6 +107,30 @@ class AgentPlanValidatorTests(unittest.TestCase):
 
         self.assertEqual(validated.tools[0]["name"], "search_web")
 
+    def test_robot_command_tool_request_validates_successfully(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "happy"
+        plan["tools"] = [{"name": "robot_command", "args": {"cmd": "wave", "leg": "RF", "count": 2}}]
+
+        validated = validate_agent_plan(plan)
+
+        self.assertEqual(validated.kind, "tool_request")
+        self.assertEqual(validated.tools[0]["name"], "robot_command")
+
+    def test_robot_request_kind_is_rejected(self):
+        plan = _valid_final_plan()
+        plan["kind"] = "robot_request"
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
+    def test_actions_top_level_field_is_rejected(self):
+        plan = _valid_final_plan()
+        plan["actions"] = []
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
 
 if __name__ == "__main__":
     unittest.main()

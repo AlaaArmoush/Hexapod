@@ -1,4 +1,4 @@
-"""Plan and validate robot serial commands using the existing bridge protocol."""
+"""Validate robot_command tool args using the existing bridge protocol."""
 
 from __future__ import annotations
 
@@ -26,55 +26,9 @@ from bridge.robot_commands import (
 )
 
 from .agent_errors import UnknownActionError, UnsafeAgentPlanError
-from .agent_plan import parse_agent_plan
 
 
-ROBOT_COMMAND_PROMPT = """
-You convert user text into exactly one compact JSON object for a hexapod robot.
-Return JSON only. No markdown. No explanation. No extra text.
-
-Allowed commands:
-{"cmd":"ping"}
-{"cmd":"status"}
-{"cmd":"stand"}
-{"cmd":"sit"}
-{"cmd":"stop"}
-{"cmd":"stop","mode":"emergency"}
-{"cmd":"wave","leg":"RF","count":2}
-{"cmd":"gait","dir":"forward","speed":0.05}
-{"cmd":"rotate","dir":"right","cycles":3}
-{"cmd":"gesture","name":"happy","intensity":0.7}
-{"cmd":"body","x":0,"y":0,"z":0}
-{"cmd":"face","name":"happy","duration_ms":1000}
-{"cmd":"blink"}
-{"cmd":"idle","style":"breathing"}
-{"cmd":"lean","dir":"left","amount_mm":20,"duration_ms":400}
-{"cmd":"look","dir":"center"}
-{"cmd":"nod","count":2}
-{"cmd":"shake","count":2}
-
-Rules:
-- Use only the keys shown for each command. Do not add extra keys.
-- gait dir: forward, backward, left, right, forward_left, forward_right, backward_left, backward_right.
-- gait speed must be 0.05 to 1.0.
-- gait may include only one of: duration_ms, steps, distance_cm.
-- rotate dir: left or right.
-- rotate may include only one of: cycles, degrees, continuous.
-- 1 rotate cycle = 30 degrees.
-- turn around = rotate 180 degrees = 6 cycles.
-- slow gait speed = 0.05, normal = 0.25, fast = 0.5.
-- wave leg must be LF or RF.
-- default wave count is 2.
-- gesture intensity must be 0.0 to 1.0.
-- body x/y/z must be -50 to 50.
-- idle style must be breathing or sway.
-- lean dir must be left, right, forward, or backward.
-- look dir must be left, right, up, down, or center.
-- If the user is just greeting, wave.
-- If the request is not a robot command, return {"cmd":"unknown"}.
-- Never output raw servo fields, low-level writes, shell commands, Python code, or arbitrary JSON.
-""".strip()
-
+DEFAULT_LLM_GAIT_SPEED = 0.03
 
 UNSAFE_ROBOT_KEYWORDS = {
     "servo",
@@ -89,37 +43,7 @@ UNSAFE_ROBOT_KEYWORDS = {
     "eval",
     "file_write",
     "file_read",
-    "raw",
 }
-
-
-class RobotCommandPlanner:
-    """Ask a local model for existing serial-protocol command JSON."""
-
-    def __init__(
-        self,
-        llama_client: Any,
-        temperature: float = 0,
-        max_tokens: int = 80,
-        prompt: str = ROBOT_COMMAND_PROMPT,
-    ):
-        self.llama_client = llama_client
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.prompt = prompt
-
-    def plan_command(self, user_input: str) -> dict[str, Any]:
-        raw_output = self.llama_client.chat(
-            [
-                {"role": "system", "content": self.prompt},
-                {"role": "user", "content": user_input},
-            ],
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            json_object=True,
-        )
-        command = parse_agent_plan(raw_output)
-        return compile_robot_command(command)
 
 
 def compile_robot_command(command: dict[str, Any]) -> dict[str, Any]:
@@ -187,7 +111,7 @@ def _build_gait(args: dict[str, Any]) -> dict[str, Any]:
     )
     return build_gait(
         dir=args.get("dir", "forward"),
-        speed=args.get("speed", 0.25),
+        speed=args.get("speed", DEFAULT_LLM_GAIT_SPEED),
         duration_ms=args.get("duration_ms"),
         steps=args.get("steps"),
         distance_cm=args.get("distance_cm"),
@@ -198,6 +122,8 @@ def _build_gait(args: dict[str, Any]) -> dict[str, Any]:
 
 def _build_rotate(args: dict[str, Any]) -> dict[str, Any]:
     _ensure_allowed_args(args, {"dir", "cycles", "degrees", "continuous"})
+    if args.get("continuous") is True:
+        raise UnknownActionError("Continuous rotation is not allowed for robot_command")
     return build_rotate(
         dir=args.get("dir", "left"),
         cycles=args.get("cycles"),
