@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from agent.agent_loop import AgentLoop
+from scripts.run_agent_cli import _build_loop, _print_result, build_parser
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +64,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(client.messages[1]["content"], "hello")
         self.assertEqual(
             client.chat_kwargs[0],
-            {"temperature": 0.2, "max_tokens": 160, "json_object": True},
+            {"temperature": 0, "max_tokens": 80, "json_object": False},
         )
 
     def test_run_once_with_valid_tool_request_calls_tool_executor(self):
@@ -83,7 +84,7 @@ class AgentLoopTests(unittest.TestCase):
         )
         calls = []
 
-        def fake_tool_executor(tools):
+        def fake_tool_executor(tools, **_kwargs):
             calls.append(tools)
             return [
                 {
@@ -126,7 +127,7 @@ class AgentLoopTests(unittest.TestCase):
             ]
         )
 
-        def fake_tool_executor(_tools):
+        def fake_tool_executor(_tools, **_kwargs):
             return [
                 {
                     "ok": True,
@@ -173,7 +174,7 @@ class AgentLoopTests(unittest.TestCase):
             ]
         )
 
-        def fake_tool_executor(_tools):
+        def fake_tool_executor(_tools, **_kwargs):
             return [
                 {
                     "ok": True,
@@ -245,6 +246,34 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Agent: I could not understand", completed.stdout)
         self.assertNotIn("Traceback", completed.stderr + completed.stdout)
+
+    def test_cli_enable_robot_requires_port(self):
+        args = build_parser().parse_args(["--enable-robot", "--once", "wave"])
+
+        with self.assertRaises(SystemExit):
+            _build_loop(args)
+
+    def test_cli_prints_robot_serial_json(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from scripts.run_agent_cli import _print_result; "
+                    "_print_result({'ok': True, 'speak': '', 'tool_results': ["
+                    "{'ok': True, 'name': 'robot_command', 'spoken_text': 'Robot command dry-run validated.', "
+                    "'data': {'serial_json': '{\"cmd\":\"wave\"}', 'dry_run': True}, 'error': None}"
+                    "]})"
+                ),
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn('Robot JSON [DRY-RUN]: {"cmd":"wave"}', completed.stdout)
 
 
 if __name__ == "__main__":

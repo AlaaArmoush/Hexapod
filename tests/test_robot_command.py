@@ -47,6 +47,11 @@ class RobotCommandTests(unittest.TestCase):
         with self.assertRaises(UnknownActionError):
             compile_robot_command({"cmd": "rotate", "dir": "right", "continuous": True})
 
+    def test_compile_rotate_degrees_converts_to_cycles(self):
+        command = compile_robot_command({"cmd": "rotate", "dir": "right", "degrees": 90})
+
+        self.assertEqual(command, {"cmd": "rotate", "dir": "right", "cycles": 3})
+
     def test_compile_unexpected_argument_is_blocked(self):
         with self.assertRaises(UnknownActionError):
             compile_robot_command({"cmd": "wave", "leg": "RF", "count": 2, "mood": "happy"})

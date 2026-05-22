@@ -35,9 +35,10 @@ class AgentLoop:
         enable_tools: bool = True,
         summarize_tool_results: bool = False,
         system_prompt: str | None = RUNTIME_SYSTEM_PROMPT,
-        temperature: float | None = 0.2,
-        max_tokens: int | None = 160,
+        temperature: float | None = 0,
+        max_tokens: int | None = 80,
         summarizer_max_tokens: int | None = 80,
+        json_response_format: bool = False,
     ):
         self.llama_client = llama_client
         self.tool_executor = tool_executor
@@ -49,6 +50,7 @@ class AgentLoop:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.summarizer_max_tokens = summarizer_max_tokens
+        self.json_response_format = json_response_format
 
     def run_once(self, user_input: str) -> dict[str, Any]:
         """Run one user turn through the model, parser, validator, and tools."""
@@ -84,12 +86,13 @@ class AgentLoop:
                 "raw_model_output": "",
             }
 
-        return self._run_plan(raw_output=raw_output, plan=plan)
+        return self._run_plan(raw_output=raw_output, plan=plan, user_input=user_input)
 
     def _run_plan(
         self,
         plan: dict[str, Any],
         raw_output: str,
+        user_input: str = "",
     ) -> dict[str, Any]:
         try:
             validated = validate_agent_plan(plan)
@@ -106,7 +109,7 @@ class AgentLoop:
         tool_results: list[dict[str, Any]] = []
         if validated.kind == "tool_request":
             if self.enable_tools:
-                tool_results = self.tool_executor(validated.tools)
+                tool_results = self.tool_executor(validated.tools, user_input=user_input)
                 if self.summarize_tool_results:
                     tool_results = self._summarize_tool_results(tool_results)
             else:
@@ -136,7 +139,7 @@ class AgentLoop:
         self,
         messages: list[dict[str, str]],
         max_tokens: int | None = None,
-        json_object: bool = True,
+        json_object: bool | None = None,
     ) -> str:
         if self.mock_llm:
             return MOCK_LLM_RESPONSE
@@ -146,7 +149,7 @@ class AgentLoop:
             messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens if max_tokens is None else max_tokens,
-            json_object=json_object,
+            json_object=self.json_response_format if json_object is None else json_object,
         )
 
     def _summarize_tool_results(
