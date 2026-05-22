@@ -12,12 +12,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 class FakeLlamaClient:
     def __init__(self, response):
-        self.response = response
+        self.responses = response if isinstance(response, list) else [response]
         self.messages = None
+        self.calls = []
 
     def chat(self, messages):
         self.messages = messages
-        return self.response
+        self.calls.append(messages)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 class AgentLoopTests(unittest.TestCase):
@@ -79,13 +84,106 @@ class AgentLoopTests(unittest.TestCase):
                 }
             ]
 
-        loop = AgentLoop(llama_client=client, tool_executor=fake_tool_executor)
+        loop = AgentLoop(
+            llama_client=client,
+            tool_executor=fake_tool_executor,
+        )
 
         result = loop.run_once("what time is it?")
 
         self.assertTrue(result["ok"])
         self.assertEqual(calls, [[{"name": "get_time", "args": {}}]])
         self.assertEqual(result["tool_results"][0]["spoken_text"], "It is 4:20 PM.")
+
+    def test_summarize_tool_results_rewrites_successful_tool_text(self):
+        client = FakeLlamaClient(
+            [
+                json.dumps(
+                    {
+                        "version": 1,
+                        "kind": "tool_request",
+                        "response": {
+                            "speak": "Let me search.",
+                            "emotion": "thinking",
+                            "face": "search",
+                        },
+                        "tools": [{"name": "search_web", "args": {"query": "hexapod"}}],
+                    }
+                ),
+                "Hexapod robots are six-legged walking machines.",
+            ]
+        )
+
+        def fake_tool_executor(_tools):
+            return [
+                {
+                    "ok": True,
+                    "name": "search_web",
+                    "spoken_text": "Raw snippet text.",
+                    "data": {"results": [{"title": "Hexapod", "snippet": "Raw snippet text."}]},
+                    "display_face": "search",
+                    "error": None,
+                }
+            ]
+
+        loop = AgentLoop(
+            llama_client=client,
+            tool_executor=fake_tool_executor,
+            summarize_tool_results=True,
+        )
+
+        result = loop.run_once("search hexapod")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["tool_results"][0]["spoken_text"],
+            "Hexapod robots are six-legged walking machines.",
+        )
+        self.assertTrue(result["tool_results"][0]["summarized"])
+        self.assertEqual(len(client.calls), 2)
+
+    def test_summarize_tool_results_falls_back_when_second_model_call_fails(self):
+        client = FakeLlamaClient(
+            [
+                json.dumps(
+                    {
+                        "version": 1,
+                        "kind": "tool_request",
+                        "response": {
+                            "speak": "Let me check.",
+                            "emotion": "thinking",
+                            "face": "clock",
+                        },
+                        "tools": [{"name": "get_time", "args": {}}],
+                    }
+                ),
+                RuntimeError("summary failed"),
+            ]
+        )
+
+        def fake_tool_executor(_tools):
+            return [
+                {
+                    "ok": True,
+                    "name": "get_time",
+                    "spoken_text": "It is 4:20 PM.",
+                    "data": {},
+                    "display_face": "clock",
+                    "error": None,
+                }
+            ]
+
+        loop = AgentLoop(
+            llama_client=client,
+            tool_executor=fake_tool_executor,
+            summarize_tool_results=True,
+        )
+
+        result = loop.run_once("what time is it?")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["tool_results"][0]["spoken_text"], "It is 4:20 PM.")
+        self.assertNotIn("summarized", result["tool_results"][0])
 
     def test_invalid_model_json_returns_friendly_error(self):
         loop = AgentLoop(llama_client=FakeLlamaClient("plain text, not json"))
