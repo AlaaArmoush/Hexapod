@@ -23,6 +23,7 @@ from bridge.robot_commands import (
     build_status,
     build_stop,
     build_wave,
+    degrees_to_cycles,
 )
 
 from .agent_errors import UnknownActionError, UnsafeAgentPlanError
@@ -124,6 +125,10 @@ def _build_rotate(args: dict[str, Any]) -> dict[str, Any]:
     _ensure_allowed_args(args, {"dir", "cycles", "degrees", "continuous"})
     if args.get("continuous") is True:
         raise UnknownActionError("Continuous rotation is not allowed for robot_command")
+    if args.get("degrees") is not None and args.get("cycles") is None:
+        args = dict(args)
+        args["cycles"] = max(1, degrees_to_cycles(args["degrees"]))
+        args.pop("degrees")
     return build_rotate(
         dir=args.get("dir", "left"),
         cycles=args.get("cycles"),

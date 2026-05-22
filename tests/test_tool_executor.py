@@ -87,10 +87,27 @@ class ToolExecutorTests(unittest.TestCase):
 
         self.assertTrue(results[0]["ok"])
         self.assertEqual(results[0]["name"], "robot_command")
-        self.assertEqual(
-            results[0]["data"],
-            {"command": {"cmd": "wave", "leg": "RF", "count": 2}, "dry_run": True},
+        self.assertEqual(results[0]["data"]["command"], {"cmd": "wave", "leg": "RF", "count": 2})
+        self.assertEqual(results[0]["data"]["serial_json"], '{"cmd":"wave","leg":"RF","count":2}')
+        self.assertTrue(results[0]["data"]["dry_run"])
+        self.assertFalse(results[0]["data"]["sent"])
+
+    def test_robot_command_repairs_rotation_degrees_from_user_text(self):
+        results = execute_tools(
+            [{"name": "robot_command", "args": {"cmd": "rotate", "dir": "right", "cycles": 2}}],
+            user_input="turn right 90 degrees",
         )
+
+        self.assertEqual(results[0]["data"]["command"], {"cmd": "rotate", "dir": "right", "cycles": 3})
+        self.assertEqual(results[0]["data"]["serial_json"], '{"cmd":"rotate","dir":"right","cycles":3}')
+
+    def test_robot_command_repairs_default_wave_count_from_user_text(self):
+        results = execute_tools(
+            [{"name": "robot_command", "args": {"cmd": "wave", "leg": "RF", "count": 1}}],
+            user_input="wave with the right front leg",
+        )
+
+        self.assertEqual(results[0]["data"]["command"], {"cmd": "wave", "leg": "RF", "count": 2})
 
     def test_robot_command_invalid_payload_returns_error(self):
         results = execute_tools(
@@ -100,6 +117,27 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertFalse(results[0]["ok"])
         self.assertEqual(results[0]["name"], "robot_command")
         self.assertEqual(results[0]["error"], "invalid_robot_command")
+
+    def test_robot_command_can_be_explicitly_disabled(self):
+        results = execute_tools(
+            [{"name": "robot_command", "args": {"cmd": "status"}}],
+            enable_robot=False,
+        )
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["error"], "robot_disabled")
+
+    def test_only_one_robot_command_is_allowed_per_turn(self):
+        results = execute_tools(
+            [
+                {"name": "robot_command", "args": {"cmd": "status"}},
+                {"name": "robot_command", "args": {"cmd": "wave", "leg": "RF", "count": 2}},
+            ]
+        )
+
+        self.assertTrue(results[0]["ok"])
+        self.assertFalse(results[1]["ok"])
+        self.assertEqual(results[1]["error"], "too_many_robot_commands")
 
 
 if __name__ == "__main__":

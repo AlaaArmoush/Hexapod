@@ -30,29 +30,28 @@ class LlamaClientTests(unittest.TestCase):
                 "messages": [{"role": "user", "content": "hello"}],
                 "temperature": 0.2,
                 "max_tokens": 32,
-                "response_format": {"type": "json_object"},
             },
             timeout=7,
         )
 
     @patch("requests.post")
-    def test_chat_can_disable_json_object_response_format(self, mock_post):
+    def test_chat_can_enable_json_object_response_format(self, mock_post):
         response = Mock()
         response.status_code = 200
         response.json.return_value = {
-            "choices": [{"message": {"content": "Short summary."}}]
+            "choices": [{"message": {"content": "{}"}}]
         }
         mock_post.return_value = response
 
         client = LlamaClient()
         result = client.chat(
-            [{"role": "user", "content": "summarize"}],
-            json_object=False,
+            [{"role": "user", "content": "json"}],
+            json_object=True,
         )
 
-        self.assertEqual(result, "Short summary.")
+        self.assertEqual(result, "{}")
         payload = mock_post.call_args.kwargs["json"]
-        self.assertNotIn("response_format", payload)
+        self.assertEqual(payload["response_format"], {"type": "json_object"})
 
     @patch("requests.post")
     def test_chat_connection_refused_raises_clear_connection_error(self, mock_post):

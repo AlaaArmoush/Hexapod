@@ -6,7 +6,8 @@ from typing import Any
 
 from tools import ToolResult, call_tool, get_tool
 
-from .robot_command import compile_robot_command
+from .robot_command_repair import repair_robot_command_from_text
+from .robot_executor import RobotExecutor
 
 
 FACE_HINTS = {
@@ -39,10 +40,16 @@ FUTURE_TOOLS = {
 }
 
 
-def execute_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def execute_tools(
+    tools: list[dict[str, Any]],
+    robot_executor: RobotExecutor | None = None,
+    enable_robot: bool = True,
+    user_input: str = "",
+) -> list[dict[str, Any]]:
     """Validate, execute, and normalize a list of tool requests."""
 
     results = []
+    robot_command_seen = False
     for request in tools:
         if not isinstance(request, dict):
             results.append(_error_result("unknown", "invalid_tool_request", "Tool request must be an object."))
@@ -64,17 +71,47 @@ def execute_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
 
         if name == "robot_command":
+            if not enable_robot:
+                results.append(_error_result(name, "robot_disabled", "Robot command handling is disabled.", args))
+                continue
+            if robot_command_seen:
+                results.append(
+                    _error_result(
+                        name,
+                        "too_many_robot_commands",
+                        "Only one robot command is allowed per turn for now.",
+                        args,
+                    )
+                )
+                continue
+            robot_command_seen = True
             try:
-                command = compile_robot_command(args)
+                executor = robot_executor or RobotExecutor(dry_run=True)
+                repaired_args = repair_robot_command_from_text(args, user_input)
+                result = executor.execute_command(repaired_args)
             except Exception as exc:
                 results.append(_error_result(name, "invalid_robot_command", str(exc), args))
+                continue
+            if not result.get("ok"):
+                results.append(
+                    _error_result(
+                        name,
+                        str(result.get("error") or "robot_command_failed"),
+                        "Robot command was not sent.",
+                        result,
+                    )
+                )
                 continue
             results.append(
                 {
                     "ok": True,
                     "name": "robot_command",
-                    "spoken_text": "Robot command dry-run validated.",
-                    "data": {"command": command, "dry_run": True},
+                    "spoken_text": (
+                        "Robot command dry-run validated."
+                        if result.get("dry_run")
+                        else "Robot command sent."
+                    ),
+                    "data": result,
                     "display_face": "system",
                     "error": None,
                 }
