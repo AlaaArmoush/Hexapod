@@ -6,3 +6,5 @@
 tests/__pycache__
 *.pyc
 tools/__pycache__
+TEST_COMMANDS.txt
+.env
