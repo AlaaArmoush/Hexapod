@@ -104,7 +104,7 @@ class AgentLoop:
             }
 
         tool_results: list[dict[str, Any]] = []
-        if validated.kind in {"tool_request", "mixed_request"}:
+        if validated.kind == "tool_request":
             if self.enable_tools:
                 tool_results = self.tool_executor(validated.tools)
                 if self.summarize_tool_results:

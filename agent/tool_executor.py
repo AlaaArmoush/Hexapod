@@ -6,6 +6,8 @@ from typing import Any
 
 from tools import ToolResult, call_tool, get_tool
 
+from .robot_command import compile_robot_command
+
 
 FACE_HINTS = {
     "get_time": "clock",
@@ -18,6 +20,7 @@ FACE_HINTS = {
     "system_status": "system",
     "network_status": "wifi",
     "battery_status": "battery",
+    "robot_command": "system",
 }
 
 NO_ARG_TOOLS = {"get_time", "get_date", "system_status", "network_status", "battery_status"}
@@ -58,6 +61,24 @@ def execute_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         if name in FUTURE_TOOLS:
             results.append(_error_result(name, "not_implemented", "This capability is not yet available.", args))
+            continue
+
+        if name == "robot_command":
+            try:
+                command = compile_robot_command(args)
+            except Exception as exc:
+                results.append(_error_result(name, "invalid_robot_command", str(exc), args))
+                continue
+            results.append(
+                {
+                    "ok": True,
+                    "name": "robot_command",
+                    "spoken_text": "Robot command dry-run validated.",
+                    "data": {"command": command, "dry_run": True},
+                    "display_face": "system",
+                    "error": None,
+                }
+            )
             continue
 
         tool = get_tool(name)
@@ -125,6 +146,11 @@ def _validate_tool_args(name: str, args: dict[str, Any]) -> str | None:
             return "reminder_text_too_long"
         return None
 
+    if name == "robot_command":
+        if not isinstance(args.get("cmd"), str):
+            return "missing_robot_cmd"
+        return None
+
     if name in FUTURE_TOOLS:
         return None
 
@@ -188,6 +214,6 @@ def _message_for_error(error: str) -> str:
         "missing_reminder_text": "I need reminder text for that.",
         "reminder_text_too_long": "That reminder text is too long.",
         "unknown_tool": "I do not know that tool yet.",
+        "missing_robot_cmd": "I need a robot command for that.",
     }
     return messages.get(error, "I could not run that tool.")
-

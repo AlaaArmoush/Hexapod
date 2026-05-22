@@ -80,6 +80,27 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertEqual(results[0]["name"], "make_coffee")
         self.assertEqual(results[0]["error"], "unknown_tool")
 
+    def test_robot_command_dry_run_returns_validated_serial_json(self):
+        results = execute_tools(
+            [{"name": "robot_command", "args": {"cmd": "wave", "leg": "rf", "count": 2}}]
+        )
+
+        self.assertTrue(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "robot_command")
+        self.assertEqual(
+            results[0]["data"],
+            {"command": {"cmd": "wave", "leg": "RF", "count": 2}, "dry_run": True},
+        )
+
+    def test_robot_command_invalid_payload_returns_error(self):
+        results = execute_tools(
+            [{"name": "robot_command", "args": {"cmd": "rotate", "dir": "right", "continuous": True}}]
+        )
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "robot_command")
+        self.assertEqual(results[0]["error"], "invalid_robot_command")
+
 
 if __name__ == "__main__":
     unittest.main()

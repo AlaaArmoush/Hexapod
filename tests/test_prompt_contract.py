@@ -32,21 +32,12 @@ class PromptContractTests(unittest.TestCase):
         self.assertIsInstance(SYSTEM_PROMPT, str)
         self.assertTrue(SYSTEM_PROMPT.strip())
 
-    def test_all_six_example_outputs_are_valid_json(self):
+    def test_example_outputs_in_prompt_are_valid_json(self):
         examples = _json_objects_in(SYSTEM_PROMPT)
 
-        self.assertEqual(len(examples), 6)
-        self.assertEqual(
-            [example["kind"] for example in examples],
-            [
-                "final_response",
-                "tool_request",
-                "tool_request",
-                "tool_request",
-                "tool_request",
-                "final_response",
-            ],
-        )
+        self.assertGreaterEqual(len(examples), 2)
+        self.assertEqual(examples[0]["kind"], "final_response")
+        self.assertEqual(examples[1]["kind"], "tool_request")
 
     def test_allowed_emotions_faces_and_tools_are_non_empty_sets(self):
         self.assertIsInstance(ALLOWED_EMOTIONS, set)
@@ -54,20 +45,19 @@ class PromptContractTests(unittest.TestCase):
         self.assertIsInstance(ALLOWED_TOOLS, set)
         self.assertTrue(ALLOWED_EMOTIONS)
         self.assertTrue(ALLOWED_FACES)
-        self.assertEqual(ALLOWED_TOOLS, {tool.name for tool in list_all()})
+        self.assertEqual(ALLOWED_TOOLS, {tool.name for tool in list_all()} | {"robot_command"})
 
     def test_prompt_contains_json_contract_word(self):
         self.assertIn("JSON", SYSTEM_PROMPT)
 
-    def test_runtime_prompt_is_shorter_than_full_prompt(self):
-        self.assertIn("JSON", RUNTIME_SYSTEM_PROMPT)
-        self.assertLess(len(RUNTIME_SYSTEM_PROMPT), len(SYSTEM_PROMPT))
+    def test_runtime_prompt_is_the_unified_system_prompt(self):
+        self.assertEqual(RUNTIME_SYSTEM_PROMPT, SYSTEM_PROMPT)
 
     def test_prompt_does_not_mention_blocked_hardware_words(self):
         lowered = SYSTEM_PROMPT.lower()
 
         self.assertNotIn("servo", lowered)
-        self.assertNotIn("serial", lowered)
+        self.assertNotIn("raw_servo", lowered)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--full-prompt",
         action="store_true",
-        help="Use the longer six-example prompt instead of the compact runtime prompt.",
+        help="Use the full unified prompt explicitly. The default runtime prompt is the same contract.",
     )
     parser.add_argument("--no-tools", action="store_true", help="Validate tool requests without executing tools.")
     parser.add_argument(
