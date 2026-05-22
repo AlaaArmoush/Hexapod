@@ -61,6 +61,7 @@ def test_build_gait_ambiguous_three_bounds():
 
 
 def test_build_gait_speed_too_low():
+    assert build_gait(speed=0.03)["speed"] == 0.03
     with pytest.raises(InvalidParameterError):
         build_gait(speed=0.0)
 
