@@ -15,10 +15,18 @@ class FakeLlamaClient:
         self.responses = response if isinstance(response, list) else [response]
         self.messages = None
         self.calls = []
+        self.chat_kwargs = []
 
-    def chat(self, messages):
+    def chat(self, messages, temperature=None, max_tokens=None, json_object=True):
         self.messages = messages
         self.calls.append(messages)
+        self.chat_kwargs.append(
+            {
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "json_object": json_object,
+            }
+        )
         response = self.responses.pop(0)
         if isinstance(response, Exception):
             raise response
@@ -53,6 +61,10 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(result["speak"], "Hello there.")
         self.assertEqual(client.messages[0]["role"], "system")
         self.assertEqual(client.messages[1]["content"], "hello")
+        self.assertEqual(
+            client.chat_kwargs[0],
+            {"temperature": 0.2, "max_tokens": 160, "json_object": True},
+        )
 
     def test_run_once_with_valid_tool_request_calls_tool_executor(self):
         client = FakeLlamaClient(

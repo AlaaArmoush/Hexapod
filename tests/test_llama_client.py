@@ -30,9 +30,29 @@ class LlamaClientTests(unittest.TestCase):
                 "messages": [{"role": "user", "content": "hello"}],
                 "temperature": 0.2,
                 "max_tokens": 32,
+                "response_format": {"type": "json_object"},
             },
             timeout=7,
         )
+
+    @patch("requests.post")
+    def test_chat_can_disable_json_object_response_format(self, mock_post):
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = {
+            "choices": [{"message": {"content": "Short summary."}}]
+        }
+        mock_post.return_value = response
+
+        client = LlamaClient()
+        result = client.chat(
+            [{"role": "user", "content": "summarize"}],
+            json_object=False,
+        )
+
+        self.assertEqual(result, "Short summary.")
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertNotIn("response_format", payload)
 
     @patch("requests.post")
     def test_chat_connection_refused_raises_clear_connection_error(self, mock_post):
@@ -46,6 +66,19 @@ class LlamaClientTests(unittest.TestCase):
         message = str(raised.exception)
         self.assertIn("Could not connect to llama-server", message)
         self.assertIn("llama-server -m", message)
+
+    @patch("requests.post")
+    def test_chat_timeout_raises_clear_timeout_error(self, mock_post):
+        mock_post.side_effect = requests.exceptions.Timeout("slow")
+
+        client = LlamaClient(timeout=5)
+
+        with self.assertRaises(TimeoutError) as raised:
+            client.chat([{"role": "user", "content": "hello"}])
+
+        message = str(raised.exception)
+        self.assertIn("Timed out waiting for llama-server", message)
+        self.assertIn("5 seconds", message)
 
     @patch("requests.post")
     def test_chat_non_200_raises_clear_error(self, mock_post):
