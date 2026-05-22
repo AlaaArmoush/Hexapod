@@ -24,6 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="llama-server base URL.")
     parser.add_argument("--timeout", type=int, default=30, help="llama-server request timeout.")
     parser.add_argument("--no-tools", action="store_true", help="Validate tool requests without executing tools.")
+    parser.add_argument(
+        "--summarize-tool-results",
+        action="store_true",
+        help="Ask the model to rewrite successful tool results as one short sentence.",
+    )
     return parser
 
 
@@ -49,6 +54,7 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
         mock_llm=args.mock_llm,
         verbose=args.verbose,
         enable_tools=not args.no_tools,
+        summarize_tool_results=args.summarize_tool_results,
     )
 
 
@@ -78,4 +84,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

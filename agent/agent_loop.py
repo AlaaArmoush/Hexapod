@@ -33,12 +33,14 @@ class AgentLoop:
         mock_llm: bool = False,
         verbose: bool = False,
         enable_tools: bool = True,
+        summarize_tool_results: bool = False,
     ):
         self.llama_client = llama_client
         self.tool_executor = tool_executor
         self.mock_llm = mock_llm
         self.verbose = verbose
         self.enable_tools = enable_tools
+        self.summarize_tool_results = summarize_tool_results
 
     def run_once(self, user_input: str) -> dict[str, Any]:
         """Run one user turn through the model, parser, validator, and tools."""
@@ -55,7 +57,6 @@ class AgentLoop:
                 print(raw_output)
 
             plan = parse_agent_plan(raw_output)
-            validated = validate_agent_plan(plan)
         except AgentPlanError as exc:
             return {
                 "ok": False,
@@ -75,10 +76,31 @@ class AgentLoop:
                 "raw_model_output": "",
             }
 
+        return self._run_plan(raw_output=raw_output, plan=plan)
+
+    def _run_plan(
+        self,
+        plan: dict[str, Any],
+        raw_output: str,
+    ) -> dict[str, Any]:
+        try:
+            validated = validate_agent_plan(plan)
+        except AgentPlanError as exc:
+            return {
+                "ok": False,
+                "kind": "error",
+                "speak": "I could not understand the model response safely.",
+                "error": str(exc),
+                "tool_results": [],
+                "raw_model_output": raw_output,
+            }
+
         tool_results: list[dict[str, Any]] = []
         if validated.kind in {"tool_request", "mixed_request"}:
             if self.enable_tools:
                 tool_results = self.tool_executor(validated.tools)
+                if self.summarize_tool_results:
+                    tool_results = self._summarize_tool_results(tool_results)
             else:
                 tool_results = [
                     {
@@ -109,3 +131,43 @@ class AgentLoop:
             raise RuntimeError("A llama client is required unless mock_llm is enabled.")
         return self.llama_client.chat(messages)
 
+    def _summarize_tool_results(
+        self, tool_results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        summarized = []
+        for result in tool_results:
+            updated = dict(result)
+            if not result.get("ok"):
+                summarized.append(updated)
+                continue
+
+            try:
+                summary = self._chat(
+                    [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Summarize tool output for a robot assistant. "
+                                "Use only the provided tool result. "
+                                "If the result is insufficient, say so. "
+                                "Reply with one short sentence and no markdown."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": "The tool returned: {}".format(
+                                json.dumps(result, sort_keys=True)
+                            ),
+                        },
+                    ]
+                ).strip()
+            except Exception:
+                summarized.append(updated)
+                continue
+
+            if summary:
+                updated["spoken_text"] = summary
+                updated["summarized"] = True
+            summarized.append(updated)
+
+        return summarized
