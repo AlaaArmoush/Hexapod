@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from agent.agent_loop import AgentLoop
 from agent.llama_client import LlamaClient
+from agent.prompts import SYSTEM_PROMPT
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", action="store_true", help="Print raw model JSON.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="llama-server base URL.")
     parser.add_argument("--timeout", type=int, default=30, help="llama-server request timeout.")
+    parser.add_argument("--temperature", type=float, default=0.2, help="Model sampling temperature.")
+    parser.add_argument("--max-tokens", type=int, default=160, help="Maximum tokens for model JSON output.")
+    parser.add_argument(
+        "--full-prompt",
+        action="store_true",
+        help="Use the longer six-example prompt instead of the compact runtime prompt.",
+    )
     parser.add_argument("--no-tools", action="store_true", help="Validate tool requests without executing tools.")
     parser.add_argument(
         "--summarize-tool-results",
@@ -55,6 +63,9 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
         verbose=args.verbose,
         enable_tools=not args.no_tools,
         summarize_tool_results=args.summarize_tool_results,
+        system_prompt=SYSTEM_PROMPT if args.full_prompt else None,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
     )
 
 

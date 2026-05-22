@@ -9,8 +9,9 @@ import requests
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_START_COMMAND = (
-    "llama-server -m ~/models/gemma4/gemma-4-E2B-it-Q8_0.gguf "
-    "-c 2048 --host 127.0.0.1 --port 8080"
+    "llama-server -m ~/models/gemma4/google_gemma-4-E2B-it-Q4_K_M.gguf "
+    "-c 2048 --reasoning off --temp 0.2 --top-k 20 --top-p 0.9 "
+    "--n-predict 256 -t 8 --host 127.0.0.1 --port 8080"
 )
 
 
@@ -26,6 +27,7 @@ class LlamaClient:
         messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        json_object: bool = True,
     ) -> str:
         """Send chat messages to llama-server and return the assistant text."""
 
@@ -34,10 +36,18 @@ class LlamaClient:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if json_object:
+            payload["response_format"] = {"type": "json_object"}
 
         url = f"{self.base_url}/v1/chat/completions"
         try:
             response = requests.post(url, json=payload, timeout=self.timeout)
+        except requests.exceptions.Timeout as exc:
+            raise TimeoutError(
+                f"Timed out waiting for llama-server at {self.base_url} after "
+                f"{self.timeout} seconds. The server is reachable, but generation "
+                "did not finish before the client timeout."
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise ConnectionError(self._connection_help()) from exc
 
@@ -58,4 +68,3 @@ class LlamaClient:
             "Please start it with:\n"
             f"  {DEFAULT_START_COMMAND}"
         )
-

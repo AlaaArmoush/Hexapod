@@ -5,6 +5,7 @@ from agent.prompts import (
     ALLOWED_EMOTIONS,
     ALLOWED_FACES,
     ALLOWED_TOOLS,
+    RUNTIME_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
 )
 from tools import list_all
@@ -57,6 +58,10 @@ class PromptContractTests(unittest.TestCase):
 
     def test_prompt_contains_json_contract_word(self):
         self.assertIn("JSON", SYSTEM_PROMPT)
+
+    def test_runtime_prompt_is_shorter_than_full_prompt(self):
+        self.assertIn("JSON", RUNTIME_SYSTEM_PROMPT)
+        self.assertLess(len(RUNTIME_SYSTEM_PROMPT), len(SYSTEM_PROMPT))
 
     def test_prompt_does_not_mention_blocked_hardware_words(self):
         lowered = SYSTEM_PROMPT.lower()
