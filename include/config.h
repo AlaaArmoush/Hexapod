@@ -35,7 +35,7 @@
 #define LOOK_DURATION_MAX_MS     4000UL
 
 // Safe motion limits
-#define GAIT_SPEED_DEFAULT    0.03f
+#define GAIT_SPEED_DEFAULT    0.01f
 #define GAIT_SPEED_MAX        0.10f
 #define GAIT_SPEED_MIN        0.005f
 #define GAIT_STEP_LEN_DEFAULT 30.0f
@@ -69,24 +69,24 @@
 #define CH_LF_FEMUR 14
 #define CH_LF_TIBIA 13
 
-#define CH_LM_COXA 4
+#define CH_LM_COXA 6
 #define CH_LM_FEMUR 5
-#define CH_LM_TIBIA 6
+#define CH_LM_TIBIA 4
 
-#define CH_LB_COXA 0
+#define CH_LB_COXA 2
 #define CH_LB_FEMUR 1
-#define CH_LB_TIBIA 2
+#define CH_LB_TIBIA 0
 
 // -----------------------------------------
 // Board 0x41 — RIGHT SIDE
 // -----------------------------------------
-#define CH_RF_COXA 0
+#define CH_RF_COXA 2
 #define CH_RF_FEMUR 1
-#define CH_RF_TIBIA 2
+#define CH_RF_TIBIA 0
 
-#define CH_RM_COXA 4
+#define CH_RM_COXA 6
 #define CH_RM_FEMUR 5
-#define CH_RM_TIBIA 6
+#define CH_RM_TIBIA 4
 
 #define CH_RB_COXA 15
 #define CH_RB_FEMUR 14
