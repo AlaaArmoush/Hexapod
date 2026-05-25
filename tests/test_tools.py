@@ -133,12 +133,19 @@ class ToolContractTests(unittest.TestCase):
     @patch("tools.web_tools._ddg_search")
     def test_search_web_network_failure(self, mock_search):
         mock_search.side_effect = RuntimeError("offline")
-
         result = search_web("hexapod robot")
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error, "network_error")
         self.assertEqual(result.data["query"], "hexapod robot")
+        self.assertEqual(result.display_face, "search")
+
+    @patch("tools.web_tools._ddg_search")
+    def test_search_web_parse_error(self, mock_search):
+        mock_search.side_effect = ValueError("bad json")
+        result = search_web("hexapod robot")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "network_error")
         self.assertEqual(result.display_face, "search")
 
     @patch("tools.web_tools._ddg_search", return_value=[])
