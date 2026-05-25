@@ -10,20 +10,6 @@ from .robot_command_repair import repair_robot_command_from_text
 from .robot_executor import RobotExecutor
 
 
-FACE_HINTS = {
-    "get_time": "clock",
-    "get_date": "calendar",
-    "search_web": "search",
-    "remember_fact": "memory",
-    "recall_memory": "memory",
-    "forget_memory": "memory",
-    "set_timer": "timer",
-    "system_status": "system",
-    "network_status": "wifi",
-    "battery_status": "battery",
-    "robot_command": "system",
-}
-
 NO_ARG_TOOLS = {"get_time", "get_date", "system_status", "network_status", "battery_status"}
 FUTURE_TOOLS = {
     "capture_image",
@@ -217,7 +203,7 @@ def _normalize_tool_result(name: str, result: ToolResult) -> dict[str, Any]:
         "name": name,
         "spoken_text": result.spoken_text,
         "data": dict(result.data),
-        "display_face": result.display_face or FACE_HINTS.get(name, "thinking"),
+        "display_face": result.display_face or _face_hint_for(name),
         "error": result.error,
     }
 
@@ -233,9 +219,20 @@ def _error_result(
         "name": name,
         "spoken_text": spoken_text,
         "data": dict(data or {}),
-        "display_face": FACE_HINTS.get(name, "thinking"),
+        "display_face": _face_hint_for(name),
         "error": error,
     }
+
+
+def _face_hint_for(name: str) -> str:
+    if name == "robot_command":
+        return "system"
+
+    tool = get_tool(name)
+    if tool is not None:
+        return tool.recommended_display_face
+
+    return "thinking"
 
 
 def _message_for_error(error: str) -> str:
