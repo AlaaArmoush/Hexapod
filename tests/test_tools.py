@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from tools import (
     TOOL_REGISTRY,
@@ -18,7 +18,6 @@ from tools import (
     list_implemented,
     search_web,
 )
-from tools.web_tools import DDG_INSTANT_ANSWER_URL
 
 
 EXPECTED_TOOL_NAMES = {
@@ -131,70 +130,55 @@ class ToolContractTests(unittest.TestCase):
         self.assertEqual(result.error, "invalid_query")
         self.assertEqual(result.display_face, "search")
 
-    @patch("requests.get")
-    def test_search_web_network_failure(self, mock_get):
-        import requests
+    @patch("tools.web_tools._ddg_search")
+    def test_search_web_network_failure(self, mock_search):
+        mock_search.side_effect = RuntimeError("offline")
 
-        mock_get.side_effect = requests.RequestException("offline")
         result = search_web("hexapod robot")
+
         self.assertFalse(result.ok)
-        self.assertEqual(result.error, "network_unavailable")
+        self.assertEqual(result.error, "network_error")
         self.assertEqual(result.data["query"], "hexapod robot")
         self.assertEqual(result.display_face, "search")
 
-    @patch("requests.get")
-    def test_search_web_parse_error(self, mock_get):
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.json.side_effect = ValueError("bad json")
-        mock_get.return_value = response
-
-        result = search_web("hexapod robot")
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error, "parse_error")
-        self.assertEqual(result.display_face, "search")
-
-    @patch("requests.get")
-    def test_search_web_no_results(self, mock_get):
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.json.return_value = {"Heading": "", "AbstractText": "", "RelatedTopics": []}
-        mock_get.return_value = response
-
+    @patch("tools.web_tools._ddg_search", return_value=[])
+    def test_search_web_no_results(self, mock_search):
         result = search_web("unlikely local query")
+
         self.assertTrue(result.ok)
         self.assertEqual(result.spoken_text, "I couldn't find anything for that.")
         self.assertEqual(result.data["results"], [])
         self.assertEqual(result.display_face, "search")
+        mock_search.assert_called_once_with("unlikely local query", news=False)
 
-    @patch("requests.get")
-    def test_search_web_success(self, mock_get):
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.json.return_value = {
-            "Heading": "Hexapod",
-            "AbstractText": "A hexapod robot is a six-legged robot.",
-            "AbstractURL": "https://example.com/hexapod",
-            "RelatedTopics": [
-                {
-                    "Text": "Robot - A machine capable of carrying out tasks.",
-                    "FirstURL": "https://example.com/robot",
-                }
-            ],
-        }
-        mock_get.return_value = response
-
+    @patch(
+        "tools.web_tools._ddg_search",
+        return_value=[
+            {
+                "title": "Hexapod",
+                "url": "https://example.com/hexapod",
+                "snippet": "A hexapod robot is a six-legged robot.",
+                "source": "",
+                "date": "",
+            },
+            {
+                "title": "Robot",
+                "url": "https://example.com/robot",
+                "snippet": "A machine capable of carrying out tasks.",
+                "source": "",
+                "date": "",
+            },
+        ],
+    )
+    def test_search_web_success(self, mock_search):
         result = call_tool("search_web", query="hexapod robot")
+
         self.assertTrue(result.ok)
         self.assertEqual(result.display_face, "search")
         self.assertEqual(result.data["query"], "hexapod robot")
         self.assertEqual(result.data["results"][0]["title"], "Hexapod")
-        self.assertIn("six-legged", result.spoken_text)
-        mock_get.assert_called_once()
-        _, kwargs = mock_get.call_args
-        self.assertEqual(mock_get.call_args.args[0], DDG_INSTANT_ANSWER_URL)
-        self.assertEqual(kwargs["params"]["q"], "hexapod robot")
-        self.assertEqual(kwargs["timeout"], 5)
+        self.assertIn("Hexapod", result.spoken_text)
+        mock_search.assert_called_once_with("hexapod robot", news=False)
 
     def test_memory_roundtrip(self):
         remembered = call_tool("remember_fact", key="favorite_command", value="wave")
