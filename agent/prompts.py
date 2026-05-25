@@ -2,33 +2,7 @@
 
 from __future__ import annotations
 
-from tools import list_all
-
-
-ALLOWED_EMOTIONS = {
-    "neutral",
-    "happy",
-    "thinking",
-    "concerned",
-    "excited",
-    "calm",
-}
-
-ALLOWED_FACES = {
-    "idle",
-    "happy",
-    "thinking",
-    "clock",
-    "calendar",
-    "search",
-    "memory",
-    "timer",
-    "system",
-    "wifi",
-    "battery",
-}
-
-ALLOWED_TOOLS = {tool.name for tool in list_all()} | {"robot_command"}
+from .response_contract import ALLOWED_EMOTIONS, ALLOWED_FACES, ALLOWED_TOOLS
 
 
 def _format_allowed(values: set[str]) -> str:

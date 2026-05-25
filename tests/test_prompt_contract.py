@@ -8,6 +8,7 @@ from agent.prompts import (
     RUNTIME_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
 )
+from agent.response_contract import FIRMWARE_COMPATIBLE_FACES, TOOL_RECOMMENDED_FACES
 from tools import list_all
 
 
@@ -46,6 +47,11 @@ class PromptContractTests(unittest.TestCase):
         self.assertTrue(ALLOWED_EMOTIONS)
         self.assertTrue(ALLOWED_FACES)
         self.assertEqual(ALLOWED_TOOLS, {tool.name for tool in list_all()} | {"robot_command"})
+
+    def test_tool_recommended_faces_are_allowed_and_firmware_compatible(self):
+        self.assertTrue(TOOL_RECOMMENDED_FACES)
+        self.assertLessEqual(TOOL_RECOMMENDED_FACES, ALLOWED_FACES)
+        self.assertLessEqual(TOOL_RECOMMENDED_FACES, FIRMWARE_COMPATIBLE_FACES)
 
     def test_prompt_contains_json_contract_word(self):
         self.assertIn("JSON", SYSTEM_PROMPT)

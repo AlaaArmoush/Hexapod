@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from agent.tool_executor import execute_tools
 
@@ -29,25 +29,26 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertEqual(results[0]["display_face"], "clock")
         self.assertIsNone(results[0]["error"])
 
-    @patch("requests.get")
-    def test_search_web_with_valid_query_calls_tool(self, mock_get):
-        response = Mock()
-        response.raise_for_status.return_value = None
-        response.json.return_value = {
-            "Heading": "Hexapod",
-            "AbstractText": "A hexapod robot is a six-legged robot.",
-            "AbstractURL": "https://example.com/hexapod",
-            "RelatedTopics": [],
-        }
-        mock_get.return_value = response
-
+    @patch(
+        "tools.web_tools._ddg_search",
+        return_value=[
+            {
+                "title": "Hexapod",
+                "url": "https://example.com/hexapod",
+                "snippet": "A hexapod robot is a six-legged robot.",
+                "source": "",
+                "date": "",
+            }
+        ],
+    )
+    def test_search_web_with_valid_query_calls_tool(self, mock_search):
         results = execute_tools([{"name": "search_web", "args": {"query": "hexapod robot"}}])
 
         self.assertTrue(results[0]["ok"])
         self.assertEqual(results[0]["name"], "search_web")
         self.assertEqual(results[0]["display_face"], "search")
-        self.assertIn("six-legged", results[0]["spoken_text"])
-        mock_get.assert_called_once()
+        self.assertIn("Hexapod", results[0]["spoken_text"])
+        mock_search.assert_called_once_with("hexapod robot", news=False)
 
     def test_search_web_with_missing_query_returns_validation_error(self):
         results = execute_tools([{"name": "search_web", "args": {}}])
@@ -72,6 +73,7 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertFalse(results[0]["ok"])
         self.assertEqual(results[0]["name"], "camera_status")
         self.assertEqual(results[0]["error"], "not_implemented")
+        self.assertEqual(results[0]["display_face"], "camera")
 
     def test_unknown_tool_name_returns_error(self):
         results = execute_tools([{"name": "make_coffee", "args": {}}])

@@ -10,7 +10,7 @@ from .agent_errors import (
     UnknownToolError,
     UnsafeAgentPlanError,
 )
-from .prompts import ALLOWED_EMOTIONS, ALLOWED_FACES, ALLOWED_TOOLS
+from .response_contract import ALLOWED_EMOTIONS, ALLOWED_FACES, ALLOWED_TOOLS
 
 
 ALLOWED_TOP_LEVEL_FIELDS = {"version", "kind", "response", "tools", "safety"}
