@@ -18,11 +18,12 @@ bool rotateStart(RotateCommand command) {
     command.cycles = (command.degrees + 15) / 30;
     if (command.cycles < 1) command.cycles = 1;
   }
-  if (command.continuous || command.cycles <= 0) {
+  if (command.continuous) {
     continuous = true;
     targetCycles = 0;
   } else {
     continuous = false;
+    if (command.cycles <= 0) command.cycles = ROTATE_CYCLES_DEFAULT;
     targetCycles = constrain(command.cycles, 1, ROTATE_CYCLES_MAX);
   }
 

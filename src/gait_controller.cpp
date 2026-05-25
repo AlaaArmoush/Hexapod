@@ -50,7 +50,11 @@ bool gaitStart(GaitCommand command) {
 
   stepsTarget = 0;
   stepsDone = 0;
-  if (command.bound == MOTION_BOUND_STEPS) {
+  if (command.bound == MOTION_BOUND_CONTINUOUS) {
+    command.bound = MOTION_BOUND_STEPS;
+    command.steps = GAIT_STEPS_DEFAULT;
+    stepsTarget = constrain(command.steps, 1, GAIT_STEPS_MAX);
+  } else if (command.bound == MOTION_BOUND_STEPS) {
     stepsTarget = constrain(command.steps, 1, GAIT_STEPS_MAX);
     command.steps = stepsTarget;
   } else if (command.bound == MOTION_BOUND_DISTANCE_CM) {

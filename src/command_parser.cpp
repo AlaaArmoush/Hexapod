@@ -116,6 +116,42 @@ static bool invalidNumber(JsonDocument& doc, const char* key) {
   return !(doc[key].is<int>() || doc[key].is<float>() || doc[key].is<double>());
 }
 
+static bool parseTextFloat(const char* value, float& out) {
+  if (!value || value[0] == '\0') return false;
+  char* end = nullptr;
+  float parsed = strtof(value, &end);
+  if (end == value || *end != '\0') return false;
+  out = parsed;
+  return true;
+}
+
+static bool parseTextInt(const char* value, int& out) {
+  if (!value || value[0] == '\0') return false;
+  char* end = nullptr;
+  long parsed = strtol(value, &end, 10);
+  if (end == value || *end != '\0') return false;
+  out = (int)parsed;
+  return true;
+}
+
+static bool parseTextUnsignedLong(const char* value, unsigned long& out) {
+  if (!value || value[0] == '\0') return false;
+  char* end = nullptr;
+  unsigned long parsed = strtoul(value, &end, 10);
+  if (end == value || *end != '\0') return false;
+  out = parsed;
+  return true;
+}
+
+static bool tokenLooksFloat(const char* value) {
+  if (!value) return false;
+  while (*value) {
+    if (*value == '.') return true;
+    value++;
+  }
+  return false;
+}
+
 static ParseResult parseJson(const char* line, RobotCommand& out) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, line);
@@ -257,16 +293,76 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     strncpy(out.gait.dirName, dir ? dir : "forward", sizeof(out.gait.dirName) - 1);
     out.gait.dirName[sizeof(out.gait.dirName) - 1] = '\0';
     if (!parseGaitDir(dir ? dir : "forward", out.gait)) return PARSE_MALFORMED;
-    char* speed = strtok(nullptr, " \t\r\n");
-    if (speed) out.gait.speed = atof(speed);
+    bool sawBound = false;
+
+    char* arg = strtok(nullptr, " \t\r\n");
+    while (arg) {
+      if (equalsIgnoreCase(arg, "--speed")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        if (!parseTextFloat(value, out.gait.speed)) out.gait.invalidNumeric = true;
+      } else if (equalsIgnoreCase(arg, "--steps")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        int steps = 0;
+        if (!parseTextInt(value, steps)) out.gait.invalidNumeric = true;
+        out.gait.steps = steps;
+        out.gait.bound = MOTION_BOUND_STEPS;
+        if (sawBound) out.gait.ambiguousBound = true;
+        sawBound = true;
+      } else if (equalsIgnoreCase(arg, "--duration-ms")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        unsigned long durationMs = 0;
+        if (!parseTextUnsignedLong(value, durationMs)) out.gait.invalidNumeric = true;
+        out.gait.durationMs = durationMs;
+        out.gait.bound = MOTION_BOUND_DURATION_MS;
+        if (sawBound) out.gait.ambiguousBound = true;
+        sawBound = true;
+      } else if (equalsIgnoreCase(arg, "--distance-cm")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        float distanceCm = 0.0f;
+        if (!parseTextFloat(value, distanceCm)) out.gait.invalidNumeric = true;
+        out.gait.distanceCm = distanceCm;
+        out.gait.bound = MOTION_BOUND_DISTANCE_CM;
+        if (sawBound) out.gait.ambiguousBound = true;
+        sawBound = true;
+      } else if (equalsIgnoreCase(arg, "--step-len")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        if (!parseTextFloat(value, out.gait.stepLength)) out.gait.invalidNumeric = true;
+      } else if (equalsIgnoreCase(arg, "--step-ht")) {
+        char* value = strtok(nullptr, " \t\r\n");
+        if (!parseTextFloat(value, out.gait.stepHeight)) out.gait.invalidNumeric = true;
+      } else if (arg[0] == '-') {
+        out.gait.invalidNumeric = true;
+      } else if (tokenLooksFloat(arg)) {
+        if (!parseTextFloat(arg, out.gait.speed)) out.gait.invalidNumeric = true;
+      } else {
+        int steps = 0;
+        if (!parseTextInt(arg, steps)) out.gait.invalidNumeric = true;
+        out.gait.steps = steps;
+        out.gait.bound = MOTION_BOUND_STEPS;
+        if (sawBound) out.gait.ambiguousBound = true;
+        sawBound = true;
+      }
+      arg = strtok(nullptr, " \t\r\n");
+    }
+
+    if ((out.gait.bound == MOTION_BOUND_DURATION_MS && out.gait.durationMs == 0) ||
+        (out.gait.bound == MOTION_BOUND_STEPS && out.gait.steps <= 0) ||
+        (out.gait.bound == MOTION_BOUND_DISTANCE_CM && out.gait.distanceCm <= 0.0f) ||
+        out.gait.speed < 0.0f || out.gait.stepLength < 0.0f || out.gait.stepHeight < 0.0f) {
+      out.gait.invalidNumeric = true;
+    }
   } else if (out.type == ROBOT_CMD_ROTATE) {
     char* dir = strtok(nullptr, " \t\r\n");
     strncpy(out.rotate.dirName, dir ? dir : "left", sizeof(out.rotate.dirName) - 1);
     out.rotate.dirName[sizeof(out.rotate.dirName) - 1] = '\0';
     out.rotate.dir = equalsIgnoreCase(dir, "right") ? LOOP_RIGHT : LOOP_LEFT;
     char* cycles = strtok(nullptr, " \t\r\n");
-    if (cycles) out.rotate.cycles = atoi(cycles);
-    else out.rotate.continuous = true;
+    if (cycles) {
+      if (equalsIgnoreCase(cycles, "--continuous")) out.rotate.continuous = true;
+      else if (!parseTextInt(cycles, out.rotate.cycles)) out.rotate.invalidNumeric = true;
+    } else {
+      out.rotate.cycles = ROTATE_CYCLES_DEFAULT;
+    }
   } else if (out.type == ROBOT_CMD_WAVE) {
     char* firstArg = strtok(nullptr, " \t\r\n");
     char* secondArg = strtok(nullptr, " \t\r\n");
@@ -316,7 +412,8 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     out.idleStyle.invalidStyle = !isIdleStyle(out.idleStyle.style);
   }
 
-  out.invalidNumeric = out.lean.invalidNumeric || out.look.invalidNumeric ||
+  out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
+                       out.lean.invalidNumeric || out.look.invalidNumeric ||
                        out.nodShake.invalidNumeric || out.face.invalidFace;
 
   return PARSE_OK;

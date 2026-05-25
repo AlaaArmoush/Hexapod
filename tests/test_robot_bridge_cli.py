@@ -58,10 +58,10 @@ def install_fake_bridge(monkeypatch, responses):
 def test_dry_run_prints_validated_json_without_opening_serial(monkeypatch, capsys):
     install_fake_bridge(monkeypatch, [])
 
-    exit_code = test_robot_bridge_cli.main(["--dry-run", "gait", "forward", "--speed", "0.2", "--steps", "3"])
+    exit_code = test_robot_bridge_cli.main(["--dry-run", "gait", "forward", "--speed", "0.1", "--steps", "3"])
 
     assert exit_code == 0
-    assert capsys.readouterr().out == '{"cmd":"gait","dir":"forward","speed":0.2,"steps":3}\n'
+    assert capsys.readouterr().out == '{"cmd":"gait","dir":"forward","speed":0.1,"steps":3}\n'
     assert FakeBridge.instances == []
 
 

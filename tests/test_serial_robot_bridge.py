@@ -176,7 +176,7 @@ def test_wait_for_status_returns_status_response():
         ("sit", (), {}, b'{"cmd":"sit"}\n', "sit"),
         ("stop", (), {"mode": "smooth"}, b'{"cmd":"stop","mode":"smooth"}\n', "stop"),
         ("emergency_stop", (), {}, b'{"cmd":"stop","mode":"emergency"}\n', "stop"),
-        ("gait", (), {"dir": "forward", "speed": 0.2, "steps": 1}, b'{"cmd":"gait","dir":"forward","speed":0.2,"steps":1}\n', "gait"),
+        ("gait", (), {"dir": "forward", "speed": 0.1, "steps": 1}, b'{"cmd":"gait","dir":"forward","speed":0.1,"steps":1}\n', "gait"),
         ("rotate", (), {"dir": "left", "cycles": 1}, b'{"cmd":"rotate","dir":"left","cycles":1}\n', "rotate"),
         ("wave", (), {"leg": "RF", "count": 2}, b'{"cmd":"wave","leg":"RF","count":2}\n', "wave"),
         ("gesture", (), {"name": "happy", "intensity": 0.5}, b'{"cmd":"gesture","name":"happy","intensity":0.5}\n', "gesture"),

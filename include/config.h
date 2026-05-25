@@ -34,19 +34,21 @@
 #define LOOK_DURATION_DEFAULT_MS 1200UL
 #define LOOK_DURATION_MAX_MS     4000UL
 
-// Safe motion limits
-#define GAIT_SPEED_DEFAULT    0.01f
+// Safe motion defaults and limits
+#define GAIT_SPEED_DEFAULT    0.03f
 #define GAIT_SPEED_MAX        0.10f
 #define GAIT_SPEED_MIN        0.005f
 #define GAIT_STEP_LEN_DEFAULT 30.0f
 #define GAIT_STEP_LEN_MAX     60.0f
 #define GAIT_STEP_HT_DEFAULT  25.0f
 #define GAIT_STEP_HT_MAX      70.0f
+#define GAIT_STEPS_DEFAULT    1
 #define GAIT_DURATION_MS_MAX  10000UL
 #define GAIT_STEPS_MAX        50
 #define GAIT_DISTANCE_CM_MAX  200.0f
 #define GAIT_CM_PER_CYCLE_DEFAULT 5.0f
 #define BODY_OFFSET_MAX       60.0f
+#define ROTATE_CYCLES_DEFAULT 1
 #define ROTATE_CYCLES_MAX     12
 
 // Expressive motion limits

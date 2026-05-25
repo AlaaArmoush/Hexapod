@@ -17,7 +17,10 @@ GAIT_DIRECTIONS = {
 ROTATE_DIRECTIONS = {"left", "right"}
 WAVE_LEGS = {"LF", "RF"}
 WAVE_COUNT_RANGE = (1, 6)
-GAIT_SPEED_RANGE = (0.03, 1.0)
+GAIT_SPEED_RANGE = (0.005, 0.10)
+GAIT_SPEED_DEFAULT = 0.03
+GAIT_STEPS_DEFAULT = 1
+ROTATE_CYCLES_DEFAULT = 1
 BODY_OFFSET_RANGE = (-50.0, 50.0)
 GESTURE_INTENSITY_RANGE = (0.0, 1.0)
 DEGREES_PER_CYCLE = 30
@@ -96,7 +99,7 @@ def build_stop(mode: str = "smooth") -> dict:
 
 def build_gait(
     dir: str = "forward",
-    speed: float = 0.25,
+    speed: float = GAIT_SPEED_DEFAULT,
     duration_ms: int | None = None,
     steps: int | None = None,
     distance_cm: float | None = None,
@@ -116,6 +119,8 @@ def build_gait(
     provided_bounds = [name for name, value in bounds.items() if value is not None]
     if len(provided_bounds) > 1:
         raise AmbiguousCommandError(f"gait bounds are mutually exclusive: {provided_bounds}")
+    if not provided_bounds:
+        steps = GAIT_STEPS_DEFAULT
 
     command = {"cmd": "gait", "dir": dir, "speed": speed}
     if duration_ms is not None:
@@ -156,6 +161,8 @@ def build_rotate(
     ]
     if len(provided_bounds) > 1:
         raise AmbiguousCommandError(f"rotate bounds are mutually exclusive: {provided_bounds}")
+    if not provided_bounds:
+        cycles = ROTATE_CYCLES_DEFAULT
 
     command = {"cmd": "rotate", "dir": dir}
     if cycles is not None:

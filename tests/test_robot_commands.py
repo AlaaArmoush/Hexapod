@@ -27,10 +27,10 @@ from bridge.robot_commands import (
 
 
 def test_build_gait_forward():
-    assert build_gait("forward", speed=0.2, steps=3) == {
+    assert build_gait("forward", speed=0.1, steps=3) == {
         "cmd": "gait",
         "dir": "forward",
-        "speed": 0.2,
+        "speed": 0.1,
         "steps": 3,
     }
 
@@ -38,6 +38,10 @@ def test_build_gait_forward():
 def test_build_gait_all_directions():
     for direction in GAIT_DIRECTIONS:
         assert build_gait(direction)["dir"] == direction
+
+
+def test_build_gait_defaults_to_one_step_at_conservative_speed():
+    assert build_gait() == {"cmd": "gait", "dir": "forward", "speed": 0.03, "steps": 1}
 
 
 def test_build_gait_invalid_direction():
@@ -78,6 +82,10 @@ def test_build_gait_negative_steps():
 
 def test_build_rotate_left_cycles():
     assert build_rotate("left", cycles=3) == {"cmd": "rotate", "dir": "left", "cycles": 3}
+
+
+def test_build_rotate_defaults_to_one_cycle():
+    assert build_rotate("right") == {"cmd": "rotate", "dir": "right", "cycles": 1}
 
 
 def test_build_rotate_right_degrees():

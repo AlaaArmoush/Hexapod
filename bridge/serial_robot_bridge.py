@@ -142,7 +142,7 @@ class SerialRobotBridge:
     def gait(
         self,
         dir: str = "forward",
-        speed: float = 0.25,
+        speed: float = 0.03,
         duration_ms: int | None = None,
         steps: int | None = None,
         distance_cm: float | None = None,

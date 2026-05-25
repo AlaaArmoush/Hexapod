@@ -107,7 +107,7 @@ def _add_command_parsers(subparsers: argparse._SubParsersAction) -> dict[str, Co
         ),
     )
     parser.add_argument("dir")
-    parser.add_argument("--speed", type=float, default=0.25)
+    parser.add_argument("--speed", type=float, default=0.03)
     parser.add_argument("--steps", type=int)
     parser.add_argument("--duration-ms", type=int)
     parser.add_argument("--distance-cm", type=float)
