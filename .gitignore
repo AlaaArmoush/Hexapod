@@ -8,4 +8,6 @@ tests/__pycache__
 tools/__pycache__
 TEST_COMMANDS.txt
 .env
+.venv/
 oak-examples/
+.cache/
