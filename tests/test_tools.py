@@ -57,6 +57,8 @@ IMPLEMENTED_TOOL_NAMES = {
     "battery_status",
     "set_timer",
     "set_reminder",
+    "capture_image",
+    "camera_status",
 }
 
 UNIMPLEMENTED_TOOL_NAMES = EXPECTED_TOOL_NAMES - IMPLEMENTED_TOOL_NAMES
@@ -251,9 +253,9 @@ class ToolContractTests(unittest.TestCase):
         self.assertEqual(reminder.error, "invalid_datetime")
 
     def test_unimplemented_tool(self):
-        result = call_tool("capture_image")
+        result = call_tool("describe_scene")
         self.assertFalse(result.ok)
-        self.assertEqual(result.action, "capture_image")
+        self.assertEqual(result.action, "describe_scene")
         self.assertEqual(result.error, "not_implemented")
         self.assertEqual(result.display_face, "camera")
 

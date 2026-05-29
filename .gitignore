@@ -3,11 +3,14 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-tests/__pycache__
+__pycache__/
+.pytest_cache/
 *.pyc
-tools/__pycache__
+*.py[cod]
 TEST_COMMANDS.txt
 .env
 .venv/
-oak-examples/
 .cache/
+data/captures/*
+!data/captures/.gitkeep
+oak-examples/

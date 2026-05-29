@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+import os
+import re
+from pathlib import Path
+
+from .errors import CameraConfigError
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CAPTURE_DIR = PROJECT_ROOT / "data" / "captures"
+CAPTURE_DIR = Path(os.environ.get("HEXAPOD_CAPTURE_DIR", DEFAULT_CAPTURE_DIR))
+CAPTURE_WIDTH = 1920
+CAPTURE_HEIGHT = 1080
+CAPTURE_FPS = 5
+MAX_LABEL_LENGTH = 48
+_SAFE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$")
+_FORBIDDEN_LABEL_TOKENS = {"raw", "pixel", "pixels", "bitmap"}
+
+
+def sanitize_capture_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+    if not isinstance(label, str):
+        raise CameraConfigError("invalid_label")
+
+    normalized = label.strip().replace(" ", "_")
+    if not normalized:
+        return None
+    label_tokens = {token.lower() for token in re.split(r"[_-]+", normalized)}
+    if (
+        len(normalized) > MAX_LABEL_LENGTH
+        or not _SAFE_LABEL_RE.fullmatch(normalized)
+        or label_tokens & _FORBIDDEN_LABEL_TOKENS
+    ):
+        raise CameraConfigError("invalid_label")
+    return normalized
+
+
+def ensure_capture_dir(capture_dir: Path | None = None) -> Path:
+    path = capture_dir or CAPTURE_DIR
+    path.mkdir(parents=True, exist_ok=True)
+    return path

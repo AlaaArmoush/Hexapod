@@ -67,13 +67,12 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertEqual(results[0]["display_face"], "memory")
         self.assertEqual(results[0]["data"]["key"], "favorite_mode")
 
-    def test_future_camera_status_returns_not_implemented(self):
-        results = execute_tools([{"name": "camera_status", "args": {}}])
+    def test_capture_image_rejects_path_label(self):
+        results = execute_tools([{"name": "capture_image", "args": {"label": "../x"}}])
 
         self.assertFalse(results[0]["ok"])
-        self.assertEqual(results[0]["name"], "camera_status")
-        self.assertEqual(results[0]["error"], "not_implemented")
-        self.assertEqual(results[0]["display_face"], "camera")
+        self.assertEqual(results[0]["name"], "capture_image")
+        self.assertEqual(results[0]["error"], "invalid_label")
 
     def test_unknown_tool_name_returns_error(self):
         results = execute_tools([{"name": "make_coffee", "args": {}}])

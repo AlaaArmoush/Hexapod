@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from tools import ToolResult, call_tool, get_tool
@@ -10,20 +11,27 @@ from .robot_command_repair import repair_robot_command_from_text
 from .robot_executor import RobotExecutor
 
 
-NO_ARG_TOOLS = {"get_time", "get_date", "system_status", "network_status", "battery_status"}
+NO_ARG_TOOLS = {
+    "get_time",
+    "get_date",
+    "system_status",
+    "network_status",
+    "battery_status",
+    "camera_status",
+}
 FUTURE_TOOLS = {
-    "capture_image",
     "describe_scene",
     "detect_person",
     "detect_object",
     "mic_status",
     "voice_direction_estimate",
-    "camera_status",
     "tell_joke",
     "local_file_lookup",
     "read_project_note",
     "explain_capability",
 }
+_SAFE_CAPTURE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$")
+_FORBIDDEN_CAPTURE_LABEL_TOKENS = {"raw", "pixel", "pixels", "bitmap"}
 
 
 def execute_tools(
@@ -174,6 +182,26 @@ def _validate_tool_args(name: str, args: dict[str, Any]) -> str | None:
             return "missing_robot_cmd"
         return None
 
+    if name == "capture_image":
+        unexpected = set(args) - {"label"}
+        if unexpected:
+            return "unexpected_args"
+        label = args.get("label")
+        if label is None:
+            return None
+        if not isinstance(label, str):
+            return "invalid_label"
+        normalized = label.strip().replace(" ", "_")
+        if not normalized:
+            return None
+        label_tokens = {token.lower() for token in re.split(r"[_-]+", normalized)}
+        if (
+            not _SAFE_CAPTURE_LABEL_RE.fullmatch(normalized)
+            or label_tokens & _FORBIDDEN_CAPTURE_LABEL_TOKENS
+        ):
+            return "invalid_label"
+        return None
+
     if name in FUTURE_TOOLS:
         return None
 
@@ -194,6 +222,11 @@ def _tool_call_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "label": args["reminder_text"],
             "datetime_str": str(args.get("datetime_str", "")),
         }
+    if name == "capture_image":
+        label = args.get("label")
+        if isinstance(label, str):
+            return {"label": label.strip().replace(" ", "_") or None}
+        return {}
     return args
 
 
@@ -249,5 +282,6 @@ def _message_for_error(error: str) -> str:
         "reminder_text_too_long": "That reminder text is too long.",
         "unknown_tool": "I do not know that tool yet.",
         "missing_robot_cmd": "I need a robot command for that.",
+        "invalid_label": "That image label is not safe.",
     }
     return messages.get(error, "I could not run that tool.")
