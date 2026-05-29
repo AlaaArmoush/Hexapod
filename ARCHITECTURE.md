@@ -14,6 +14,10 @@ The host should never send raw servo angles or display pixels during normal
 operation. It describes what the robot should do, and the firmware owns the
 translation into safe hardware-level action.
 
+The current host side also includes a local Gemma agent loop. That layer is
+allowed to propose only validated JSON outputs and deterministic tool calls. It
+does not bypass the Python bridge or the firmware command parser.
+
 ## System Shape
 
 At a high level, the firmware is split into five cooperating domains:
@@ -204,9 +208,72 @@ The CLI in `test_robot_bridge_cli.py` is primarily for smoke testing and manual
 operation. `--dry-run` validates and prints the exact JSON without opening a
 serial port; hardware runs wait for the firmware `ready` event before sending.
 
-Future LLM or voice layers should call `SerialRobotBridge` methods or a
-deterministic executor built on top of them. They should not write directly to
-serial and should not construct raw JSON strings themselves.
+LLM or voice layers should call `SerialRobotBridge` methods or a deterministic
+executor built on top of them. They should not write directly to serial and
+should not construct raw JSON strings themselves.
+
+## Local Gemma Agent Loop
+
+Files:
+
+- `scripts/run_agent_cli.py`
+- `agent/llama_client.py`
+- `agent/prompts.py`
+- `agent/response_contract.py`
+- `agent/agent_plan.py`
+- `agent/agent_validator.py`
+- `agent/tool_executor.py`
+- `agent/robot_command.py`
+- `agent/robot_executor.py`
+- `docs/LOCAL_GEMMA_AGENT.md`
+- `docs/AGENT_OUTPUT_CONTRACT.md`
+
+The local agent loop is the current AI layer for typed interaction. It sends a
+system prompt and user text to a locally running Gemma model through
+`llama-server`, then treats the model response as untrusted data.
+
+The accepted model output is one JSON object with one of two modes:
+
+- `final_response`: speak directly to the user without running a tool
+- `tool_request`: request one or more known deterministic tools
+
+The safety path is deliberately narrow:
+
+```text
+typed input
+  -> run_agent_cli.py
+  -> AgentLoop
+  -> LlamaClient
+  -> parse_agent_plan()
+  -> validate_agent_plan()
+  -> execute_tools()
+  -> deterministic tool result
+```
+
+Robot requests are represented as a `robot_command` tool request. Those
+arguments are compiled through `agent/robot_command.py`, which reuses the bridge
+command builders in `bridge/robot_commands.py`. In default CLI mode,
+`RobotExecutor` dry-runs the command and prints the compact serial JSON instead
+of opening a serial port.
+
+Real robot execution requires all of these:
+
+- `--enable-robot`
+- an explicit `--port`
+- confirmation for movement unless `--yes` is passed
+- successful validation by the agent output contract
+- successful validation by the bridge command builders
+
+This gives the AI layer two boundaries before hardware:
+
+1. The model may only produce the documented agent JSON contract.
+2. A robot command must still compile into the existing semantic serial
+   protocol before `SerialRobotBridge` can send it.
+
+The agent validator rejects unsafe strings such as raw servo control, shell or
+Python execution, direct serial writes, I2C/PCA writes, raw OLED pixels, and
+arbitrary file access. This mirrors the firmware boundary: the model can express
+intent, but it cannot write hardware-level commands.
 
 ## Robot Controller
 
