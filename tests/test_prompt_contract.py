@@ -53,6 +53,9 @@ class PromptContractTests(unittest.TestCase):
         self.assertLessEqual(TOOL_RECOMMENDED_FACES, ALLOWED_FACES)
         self.assertLessEqual(TOOL_RECOMMENDED_FACES, FIRMWARE_COMPATIBLE_FACES)
 
+    def test_all_firmware_compatible_faces_are_allowed(self):
+        self.assertEqual(ALLOWED_FACES, FIRMWARE_COMPATIBLE_FACES)
+
     def test_prompt_contains_json_contract_word(self):
         self.assertIn("JSON", SYSTEM_PROMPT)
 
