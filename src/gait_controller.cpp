@@ -21,12 +21,12 @@ static void directionVector(GaitCommand& command) {
   switch (command.dir) {
     case GAIT_DIR_FORWARD: command.x = 1.0f; command.y = 0.0f; break;
     case GAIT_DIR_BACKWARD: command.x = -1.0f; command.y = 0.0f; break;
-    case GAIT_DIR_LEFT: command.x = 0.0f; command.y = 1.0f; break;
-    case GAIT_DIR_RIGHT: command.x = 0.0f; command.y = -1.0f; break;
-    case GAIT_DIR_FORWARD_LEFT: command.x = 0.7071f; command.y = 0.7071f; break;
-    case GAIT_DIR_FORWARD_RIGHT: command.x = 0.7071f; command.y = -0.7071f; break;
-    case GAIT_DIR_BACKWARD_LEFT: command.x = -0.7071f; command.y = 0.7071f; break;
-    case GAIT_DIR_BACKWARD_RIGHT: command.x = -0.7071f; command.y = -0.7071f; break;
+    case GAIT_DIR_LEFT: command.x = 0.0f; command.y = -1.0f; break;
+    case GAIT_DIR_RIGHT: command.x = 0.0f; command.y = 1.0f; break;
+    case GAIT_DIR_FORWARD_LEFT: command.x = 0.7071f; command.y = -0.7071f; break;
+    case GAIT_DIR_FORWARD_RIGHT: command.x = 0.7071f; command.y = 0.7071f; break;
+    case GAIT_DIR_BACKWARD_LEFT: command.x = -0.7071f; command.y = -0.7071f; break;
+    case GAIT_DIR_BACKWARD_RIGHT: command.x = -0.7071f; command.y = 0.7071f; break;
     case GAIT_DIR_CUSTOM: break;
   }
 }

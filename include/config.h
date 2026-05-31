@@ -15,6 +15,7 @@
 #define LOOP_INTERP_STEP 1 // degrees per update
 #define LOOP_UPDATE_MS 5  // update interval
 #define LOOP_HOLD_MS 40   // hold after reaching each phase
+#define ROTATE_LOOP_UPDATE_MS 8 // rotate update interval; higher = slower turn
 
 // Command-driven firmware
 #define AUTO_STAND_ON_BOOT    0
@@ -35,8 +36,8 @@
 #define LOOK_DURATION_MAX_MS     4000UL
 
 // Safe motion defaults and limits
-#define GAIT_SPEED_DEFAULT    0.03f
-#define GAIT_SPEED_MAX        0.10f
+#define GAIT_SPEED_DEFAULT    0.015f
+#define GAIT_SPEED_MAX        0.05f
 #define GAIT_SPEED_MIN        0.005f
 #define GAIT_STEP_LEN_DEFAULT 30.0f
 #define GAIT_STEP_LEN_MAX     60.0f

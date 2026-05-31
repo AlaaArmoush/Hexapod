@@ -192,7 +192,7 @@ void startRotateLoop(LoopDirection dir) {
 
 void updateRotateLoopTest() {
   unsigned long now = millis();
-  if (now - lastLoopUpdate < LOOP_UPDATE_MS)
+  if (now - lastLoopUpdate < ROTATE_LOOP_UPDATE_MS)
     return;
   lastLoopUpdate = now;
 
