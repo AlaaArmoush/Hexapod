@@ -1,6 +1,7 @@
 from typing import Callable, Dict, List, Optional
 
 from .base import ToolResult
+from .camera_tools import camera_status, capture_image
 from .memory_tools import forget_memory, recall_memory, remember_fact
 from .system_tools import battery_status, network_status, system_status
 from .time_tools import get_date, get_time
@@ -70,13 +71,13 @@ TOOL_REGISTRY: List[ToolMeta] = [
     _meta("battery_status", "Report battery status when a battery source is available.", [], [], "battery", implemented=True, fn=battery_status),
     _meta("set_timer", "Store timer metadata for a future scheduler.", ["label", "duration_seconds"], [], "timer", implemented=True, fn=set_timer),
     _meta("set_reminder", "Store reminder metadata for a future scheduler.", ["label", "datetime_str"], [], "reminder", implemented=True, fn=set_reminder),
-    _meta("capture_image", "Capture an image from the camera.", [], [], "camera", needs_camera=True),
+    _meta("capture_image", "Capture an image from the camera.", [], ["label"], "camera", implemented=True, fn=capture_image, needs_camera=True),
     _meta("describe_scene", "Describe what the camera currently sees.", [], [], "camera", needs_camera=True),
     _meta("detect_person", "Detect whether a person is visible.", [], [], "camera", needs_camera=True),
     _meta("detect_object", "Detect whether a requested object is visible.", ["object_name"], [], "camera", needs_camera=True),
     _meta("mic_status", "Report microphone availability and status.", [], [], "microphone", needs_microphone=True),
     _meta("voice_direction_estimate", "Estimate the direction of a speaker.", [], [], "microphone", needs_microphone=True),
-    _meta("camera_status", "Report camera availability and status.", [], [], "camera", needs_camera=True),
+    _meta("camera_status", "Report camera availability and status.", [], [], "camera", implemented=True, fn=camera_status, needs_camera=True),
     _meta("tell_joke", "Tell a short local joke.", [], [], "speaking"),
     _meta("local_file_lookup", "Look up a local file or note by query.", ["query"], [], "memory"),
     _meta("read_project_note", "Read a local project note by name.", ["name"], [], "memory"),

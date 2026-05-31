@@ -107,6 +107,40 @@ class AgentPlanValidatorTests(unittest.TestCase):
 
         self.assertEqual(validated.tools[0]["name"], "search_web")
 
+    def test_camera_status_tool_request_validates_successfully(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "camera_status", "args": {}}]
+
+        validated = validate_agent_plan(plan)
+
+        self.assertEqual(validated.tools[0]["name"], "camera_status")
+
+    def test_capture_image_tool_request_validates_successfully(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "capture_image", "args": {"label": "desk_test"}}]
+
+        validated = validate_agent_plan(plan)
+
+        self.assertEqual(validated.tools[0]["args"]["label"], "desk_test")
+
+    def test_camera_status_rejects_unexpected_args(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "camera_status", "args": {"label": "desk"}}]
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
+    def test_capture_image_rejects_path_label(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "capture_image", "args": {"label": "../desk"}}]
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
     def test_robot_command_tool_request_validates_successfully(self):
         plan = copy.deepcopy(_valid_tool_plan())
         plan["response"]["face"] = "happy"
