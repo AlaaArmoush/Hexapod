@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,6 +33,8 @@ UNSAFE_KEYWORDS = {
     "raw_oled",
     "arbitrary_json",
 }
+_SAFE_CAPTURE_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$")
+_FORBIDDEN_CAPTURE_LABEL_TOKENS = {"raw", "pixel", "pixels", "bitmap"}
 
 
 @dataclass
@@ -95,6 +98,7 @@ def validate_agent_plan(plan: dict) -> ValidatedAgentPlan:
         name = tool.get("name")
         if name not in ALLOWED_TOOLS:
             raise UnknownToolError(f"Unknown tool: {name}")
+        _validate_tool_args(name, tool.get("args", {}))
 
     return ValidatedAgentPlan(
         version=1,
@@ -124,3 +128,34 @@ def _reject_unsafe_values(value: Any) -> None:
         for keyword in UNSAFE_KEYWORDS:
             if keyword in lowered:
                 raise UnsafeAgentPlanError(f"Unsafe keyword found: {keyword}")
+
+
+def _validate_tool_args(name: str, args: Any) -> None:
+    if not isinstance(args, dict):
+        raise AgentPlanValidationError("tool args must be an object")
+
+    if name == "camera_status":
+        if args:
+            raise AgentPlanValidationError("camera_status does not take arguments")
+        return
+
+    if name == "capture_image":
+        unknown = set(args) - {"label"}
+        if unknown:
+            raise AgentPlanValidationError("capture_image only accepts label")
+
+        label = args.get("label")
+        if label is None:
+            return
+        if not isinstance(label, str):
+            raise AgentPlanValidationError("capture_image label must be a string")
+
+        normalized = label.strip().replace(" ", "_")
+        if not normalized:
+            return
+        label_tokens = {token.lower() for token in re.split(r"[_-]+", normalized)}
+        if (
+            not _SAFE_CAPTURE_LABEL_RE.fullmatch(normalized)
+            or label_tokens & _FORBIDDEN_CAPTURE_LABEL_TOKENS
+        ):
+            raise AgentPlanValidationError("capture_image label is not safe")

@@ -95,6 +95,29 @@ def _print_result(result: dict) -> None:
             if serial_json:
                 mode = "DRY-RUN" if data.get("dry_run") else "SEND"
                 print("Robot JSON [{}]: {}".format(mode, serial_json))
+        elif name == "camera_status":
+            data = tool_result.get("data", {})
+            if data:
+                print(
+                    "Camera: connected={} running={} device={} stereo={}".format(
+                        data.get("connected"),
+                        data.get("pipeline_running"),
+                        data.get("device_id"),
+                        data.get("stereo_available"),
+                    )
+                )
+        elif name == "capture_image":
+            data = tool_result.get("data", {})
+            path = data.get("path")
+            if path:
+                print("Image path: {}".format(path))
+                print(
+                    "Image: {}x{} age_ms={}".format(
+                        data.get("width"),
+                        data.get("height"),
+                        data.get("age_ms"),
+                    )
+                )
 
 
 def _build_loop(args: argparse.Namespace) -> AgentLoop:
