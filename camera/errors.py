@@ -3,6 +3,10 @@ class CameraError(Exception):
 
     error_code = "camera_error"
 
+    def __init__(self, message: str | None = None, *, data: dict | None = None) -> None:
+        super().__init__(message or self.error_code)
+        self.data = dict(data or {})
+
 
 class CameraConfigError(CameraError):
     error_code = "invalid_camera_config"
@@ -22,3 +26,11 @@ class CameraPipelineError(CameraError):
 
 class CameraCaptureError(CameraError):
     error_code = "capture_failed"
+
+
+class CameraStereoUnavailable(CameraError):
+    error_code = "stereo_not_available"
+
+
+class CameraDepthError(CameraError):
+    error_code = "depth_unavailable"

@@ -134,9 +134,9 @@ def _validate_tool_args(name: str, args: Any) -> None:
     if not isinstance(args, dict):
         raise AgentPlanValidationError("tool args must be an object")
 
-    if name == "camera_status":
+    if name in {"camera_status", "depth_probe"}:
         if args:
-            raise AgentPlanValidationError("camera_status does not take arguments")
+            raise AgentPlanValidationError(f"{name} does not take arguments")
         return
 
     if name == "capture_image":

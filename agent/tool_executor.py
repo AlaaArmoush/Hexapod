@@ -18,6 +18,7 @@ NO_ARG_TOOLS = {
     "network_status",
     "battery_status",
     "camera_status",
+    "depth_probe",
 }
 FUTURE_TOOLS = {
     "describe_scene",

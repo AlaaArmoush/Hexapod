@@ -125,10 +125,27 @@ class AgentPlanValidatorTests(unittest.TestCase):
 
         self.assertEqual(validated.tools[0]["args"]["label"], "desk_test")
 
+    def test_depth_probe_tool_request_validates_successfully(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "depth_probe", "args": {}}]
+
+        validated = validate_agent_plan(plan)
+
+        self.assertEqual(validated.tools[0]["name"], "depth_probe")
+
     def test_camera_status_rejects_unexpected_args(self):
         plan = copy.deepcopy(_valid_tool_plan())
         plan["response"]["face"] = "camera"
         plan["tools"] = [{"name": "camera_status", "args": {"label": "desk"}}]
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
+    def test_depth_probe_rejects_unexpected_args(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "depth_probe", "args": {"roi": "center"}}]
 
         with self.assertRaises(AgentPlanValidationError):
             validate_agent_plan(plan)
