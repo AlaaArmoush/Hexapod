@@ -27,14 +27,16 @@ If the user asks the date, use get_date.
 If the user says search, web, look up, latest, current, or news, use search_web.
 If the user asks whether the camera is connected, working, or available, use camera_status.
 If the user asks to take a picture, photo, image, or snapshot, use capture_image.
+If the user asks how far away something is in front of the camera, use depth_probe.
 For capture_image, label is optional and must be a short name only: letters, numbers, underscores, or hyphens. Never put a path in label.
 Tool examples:
 {{"version":1,"kind":"tool_request","response":{{"speak":"Checking the time.","emotion":"thinking","face":"clock"}},"tools":[{{"name":"get_time","args":{{}}}}]}}
 {{"version":1,"kind":"tool_request","response":{{"speak":"Searching.","emotion":"thinking","face":"search"}},"tools":[{{"name":"search_web","args":{{"query":"what is a hexapod"}}}}]}}
 {{"version":1,"kind":"tool_request","response":{{"speak":"Checking the camera.","emotion":"thinking","face":"camera"}},"tools":[{{"name":"camera_status","args":{{}}}}]}}
 {{"version":1,"kind":"tool_request","response":{{"speak":"Taking a picture.","emotion":"thinking","face":"camera"}},"tools":[{{"name":"capture_image","args":{{"label":"desk_test"}}}}]}}
+{{"version":1,"kind":"tool_request","response":{{"speak":"Checking the distance.","emotion":"thinking","face":"camera"}},"tools":[{{"name":"depth_probe","args":{{}}}}]}}
 search_web.query must be concise search terms.
-camera_status takes no args. capture_image takes only optional label.
+camera_status and depth_probe take no args. capture_image takes only optional label.
 Do not combine camera tools with robot movement in the same turn.
 
 Any robot movement, posture, gesture, face, look, wave, stop, or robot status request MUST be kind tool_request with tool robot_command. Do not answer robot movement as final_response only.

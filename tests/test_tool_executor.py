@@ -74,6 +74,13 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertEqual(results[0]["name"], "capture_image")
         self.assertEqual(results[0]["error"], "invalid_label")
 
+    def test_depth_probe_rejects_unexpected_args(self):
+        results = execute_tools([{"name": "depth_probe", "args": {"roi": "center"}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "depth_probe")
+        self.assertEqual(results[0]["error"], "unexpected_args")
+
     def test_unknown_tool_name_returns_error(self):
         results = execute_tools([{"name": "make_coffee", "args": {}}])
 

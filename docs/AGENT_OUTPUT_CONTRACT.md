@@ -165,6 +165,7 @@ The contract imports allowed tool names from `agent/response_contract.py`.
 battery_status
 camera_status
 capture_image
+depth_probe
 describe_scene
 detect_object
 detect_person
