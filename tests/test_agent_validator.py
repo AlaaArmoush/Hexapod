@@ -134,6 +134,15 @@ class AgentPlanValidatorTests(unittest.TestCase):
 
         self.assertEqual(validated.tools[0]["name"], "depth_probe")
 
+    def test_check_clearance_tool_request_validates_successfully(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "check_clearance", "args": {"min_clear_m": 0.5, "roi": "center"}}]
+
+        validated = validate_agent_plan(plan)
+
+        self.assertEqual(validated.tools[0]["name"], "check_clearance")
+
     def test_camera_status_rejects_unexpected_args(self):
         plan = copy.deepcopy(_valid_tool_plan())
         plan["response"]["face"] = "camera"
@@ -146,6 +155,14 @@ class AgentPlanValidatorTests(unittest.TestCase):
         plan = copy.deepcopy(_valid_tool_plan())
         plan["response"]["face"] = "camera"
         plan["tools"] = [{"name": "depth_probe", "args": {"roi": "center"}}]
+
+        with self.assertRaises(AgentPlanValidationError):
+            validate_agent_plan(plan)
+
+    def test_check_clearance_rejects_bad_args(self):
+        plan = copy.deepcopy(_valid_tool_plan())
+        plan["response"]["face"] = "camera"
+        plan["tools"] = [{"name": "check_clearance", "args": {"min_clear_m": 10.0, "roi": "wide"}}]
 
         with self.assertRaises(AgentPlanValidationError):
             validate_agent_plan(plan)

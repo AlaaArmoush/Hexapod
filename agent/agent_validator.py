@@ -159,3 +159,20 @@ def _validate_tool_args(name: str, args: Any) -> None:
             or label_tokens & _FORBIDDEN_CAPTURE_LABEL_TOKENS
         ):
             raise AgentPlanValidationError("capture_image label is not safe")
+
+    if name == "check_clearance":
+        unknown = set(args) - {"min_clear_m", "roi"}
+        if unknown:
+            raise AgentPlanValidationError("check_clearance only accepts min_clear_m and roi")
+
+        roi = args.get("roi", "center")
+        if roi != "center":
+            raise AgentPlanValidationError("check_clearance roi must be center")
+
+        threshold = args.get("min_clear_m")
+        if threshold is None:
+            return
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            raise AgentPlanValidationError("check_clearance min_clear_m must be a number")
+        if threshold < 0.1 or threshold > 5.0:
+            raise AgentPlanValidationError("check_clearance min_clear_m is out of range")

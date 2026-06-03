@@ -203,6 +203,22 @@ def _validate_tool_args(name: str, args: dict[str, Any]) -> str | None:
             return "invalid_label"
         return None
 
+    if name == "check_clearance":
+        unexpected = set(args) - {"min_clear_m", "roi"}
+        if unexpected:
+            return "unexpected_args"
+        roi = args.get("roi", "center")
+        if roi != "center":
+            return "invalid_clearance_roi"
+        threshold = args.get("min_clear_m")
+        if threshold is None:
+            return None
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            return "invalid_clearance_threshold"
+        if threshold < 0.1 or threshold > 5.0:
+            return "invalid_clearance_threshold"
+        return None
+
     if name in FUTURE_TOOLS:
         return None
 
@@ -228,6 +244,13 @@ def _tool_call_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if isinstance(label, str):
             return {"label": label.strip().replace(" ", "_") or None}
         return {}
+    if name == "check_clearance":
+        kwargs = {}
+        if "min_clear_m" in args:
+            kwargs["min_clear_m"] = args["min_clear_m"]
+        if "roi" in args:
+            kwargs["roi"] = args["roi"]
+        return kwargs
     return args
 
 
@@ -284,5 +307,7 @@ def _message_for_error(error: str) -> str:
         "unknown_tool": "I do not know that tool yet.",
         "missing_robot_cmd": "I need a robot command for that.",
         "invalid_label": "That image label is not safe.",
+        "invalid_clearance_roi": "That clearance region is not supported.",
+        "invalid_clearance_threshold": "Clearance threshold must be between 0.1 and 5.0 metres.",
     }
     return messages.get(error, "I could not run that tool.")
