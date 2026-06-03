@@ -1,0 +1,8 @@
+# GitHub Linguist language stats.
+# PlatformIO/Arduino headers are C++ project code, not C.
+*.h linguist-language=C++
+*.hpp linguist-language=C++
+
+# unit testing should not dominate the repository language breakdown.
+tests/** linguist-detectable=false
+test_*.py linguist-detectable=false
