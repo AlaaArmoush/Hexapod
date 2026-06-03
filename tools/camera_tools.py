@@ -57,12 +57,40 @@ def capture_image(label: str | None = None) -> ToolResult:
     )
 
 
+def depth_probe() -> ToolResult:
+    provider = DepthAICameraProvider()
+    try:
+        depth = provider.depth_probe()
+    except CameraError as exc:
+        return _camera_error("depth_probe", exc, "Depth sensor unavailable.")
+    finally:
+        provider.close()
+
+    return ToolResult(
+        ok=True,
+        action="depth_probe",
+        spoken_text=f"Center depth is about {depth.distance_m:.2f} metres.",
+        data={
+            "distance_m": depth.distance_m,
+            "nearest_distance_m": depth.nearest_distance_m,
+            "roi": depth.roi,
+            "frame_age_ms": depth.frame_age_ms,
+            "depth_width": depth.depth_width,
+            "depth_height": depth.depth_height,
+            "valid_samples": depth.valid_samples,
+            "valid_ratio": depth.valid_ratio,
+            "roi_pixels": depth.roi_pixels,
+        },
+        display_face="camera",
+    )
+
+
 def _camera_error(action: str, exc: CameraError, spoken_text: str) -> ToolResult:
     return ToolResult(
         ok=False,
         action=action,
         spoken_text=spoken_text,
-        data={},
+        data=dict(getattr(exc, "data", {}) or {}),
         display_face="camera",
         error=exc.error_code,
     )

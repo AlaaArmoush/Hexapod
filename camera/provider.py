@@ -9,15 +9,21 @@ from .config import (
     CAPTURE_FPS,
     CAPTURE_HEIGHT,
     CAPTURE_WIDTH,
+    DEPTH_FPS,
+    DEPTH_HEIGHT,
+    DEPTH_WIDTH,
     ensure_capture_dir,
     sanitize_capture_label,
 )
+from .depth import DepthProbeResult, summarize_center_depth
 from .errors import (
     CameraCaptureError,
     CameraDependencyError,
     CameraDeviceNotFound,
+    CameraDepthError,
     CameraError,
     CameraPipelineError,
+    CameraStereoUnavailable,
 )
 
 
@@ -45,6 +51,9 @@ class CameraProvider(Protocol):
         ...
 
     def capture_image(self, label: str | None = None) -> CaptureResult:
+        ...
+
+    def depth_probe(self) -> DepthProbeResult:
         ...
 
     def close(self) -> None:
@@ -140,6 +149,53 @@ class DepthAICameraProvider:
         except Exception as exc:
             raise self._camera_exception(exc, capture=True) from exc
 
+    def depth_probe(self) -> DepthProbeResult:
+        dai = self._import_depthai()
+
+        try:
+            device = dai.Device()
+            features = device.getConnectedCameraFeatures()
+            if (
+                self._camera_feature(features, dai.CameraBoardSocket.CAM_B) is None
+                or self._camera_feature(features, dai.CameraBoardSocket.CAM_C) is None
+            ):
+                raise CameraStereoUnavailable("Stereo cameras CAM_B/C are not available.")
+
+            with dai.Pipeline(device) as pipeline:
+                left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
+                right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
+                left_out = left.requestOutput(
+                    (DEPTH_WIDTH, DEPTH_HEIGHT),
+                    dai.ImgFrame.Type.NV12,
+                    fps=DEPTH_FPS,
+                )
+                right_out = right.requestOutput(
+                    (DEPTH_WIDTH, DEPTH_HEIGHT),
+                    dai.ImgFrame.Type.NV12,
+                    fps=DEPTH_FPS,
+                )
+                stereo = pipeline.create(dai.node.StereoDepth).build(
+                    left=left_out,
+                    right=right_out,
+                    presetMode=dai.node.StereoDepth.PresetMode.DEFAULT,
+                )
+                stereo.initialConfig.setMedianFilter(dai.MedianFilter.MEDIAN_OFF)
+                stereo.setRectification(True)
+                stereo.setExtendedDisparity(True)
+                stereo.setLeftRightCheck(True)
+
+                queue = stereo.depth.createOutputQueue(maxSize=1, blocking=True)
+                pipeline.start()
+                depth_msg = queue.get()
+                captured_ms = int(time.time() * 1000)
+                frame = depth_msg.getFrame()
+                ended_ms = int(time.time() * 1000)
+                return summarize_center_depth(frame, frame_age_ms=ended_ms - captured_ms)
+        except CameraError:
+            raise
+        except Exception as exc:
+            raise self._camera_exception(exc, depth=True) from exc
+
     def close(self) -> None:
         return None
 
@@ -186,10 +242,13 @@ class DepthAICameraProvider:
         *,
         pipeline: bool = False,
         capture: bool = False,
+        depth: bool = False,
     ) -> CameraError:
         message = str(exc)
         if "No available devices" in message or "Device already closed" in message:
             return CameraDeviceNotFound(message)
+        if depth:
+            return CameraDepthError(message)
         if pipeline:
             return CameraPipelineError(message)
         if capture:

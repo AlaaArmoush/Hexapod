@@ -1,3 +1,4 @@
+from .depth import DepthProbeResult
 from .provider import (
     CameraStatus,
     CaptureResult,
@@ -7,5 +8,6 @@ from .provider import (
 __all__ = [
     "CameraStatus",
     "CaptureResult",
+    "DepthProbeResult",
     "DepthAICameraProvider",
 ]

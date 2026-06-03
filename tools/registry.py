@@ -1,7 +1,7 @@
 from typing import Callable, Dict, List, Optional
 
 from .base import ToolResult
-from .camera_tools import camera_status, capture_image
+from .camera_tools import camera_status, capture_image, depth_probe
 from .memory_tools import forget_memory, recall_memory, remember_fact
 from .system_tools import battery_status, network_status, system_status
 from .time_tools import get_date, get_time
@@ -72,6 +72,7 @@ TOOL_REGISTRY: List[ToolMeta] = [
     _meta("set_timer", "Store timer metadata for a future scheduler.", ["label", "duration_seconds"], [], "timer", implemented=True, fn=set_timer),
     _meta("set_reminder", "Store reminder metadata for a future scheduler.", ["label", "datetime_str"], [], "reminder", implemented=True, fn=set_reminder),
     _meta("capture_image", "Capture an image from the camera.", [], ["label"], "camera", implemented=True, fn=capture_image, needs_camera=True),
+    _meta("depth_probe", "Report the center ROI distance from the stereo depth camera.", [], [], "camera", implemented=True, fn=depth_probe, needs_camera=True),
     _meta("describe_scene", "Describe what the camera currently sees.", [], [], "camera", needs_camera=True),
     _meta("detect_person", "Detect whether a person is visible.", [], [], "camera", needs_camera=True),
     _meta("detect_object", "Detect whether a requested object is visible.", ["object_name"], [], "camera", needs_camera=True),
