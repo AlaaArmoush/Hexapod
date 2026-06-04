@@ -6,6 +6,9 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from camera.detection import normalize_object_name
+from camera.errors import CameraConfigError
+
 from .agent_errors import (
     AgentPlanValidationError,
     UnknownToolError,
@@ -134,7 +137,7 @@ def _validate_tool_args(name: str, args: Any) -> None:
     if not isinstance(args, dict):
         raise AgentPlanValidationError("tool args must be an object")
 
-    if name in {"camera_status", "depth_probe"}:
+    if name in {"camera_status", "depth_probe", "observe_scene"}:
         if args:
             raise AgentPlanValidationError(f"{name} does not take arguments")
         return
@@ -159,3 +162,37 @@ def _validate_tool_args(name: str, args: Any) -> None:
             or label_tokens & _FORBIDDEN_CAPTURE_LABEL_TOKENS
         ):
             raise AgentPlanValidationError("capture_image label is not safe")
+
+    if name == "check_clearance":
+        unknown = set(args) - {"min_clear_m", "roi"}
+        if unknown:
+            raise AgentPlanValidationError("check_clearance only accepts min_clear_m and roi")
+
+        roi = args.get("roi", "center")
+        if roi != "center":
+            raise AgentPlanValidationError("check_clearance roi must be center")
+
+        threshold = args.get("min_clear_m")
+        if threshold is None:
+            return
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            raise AgentPlanValidationError("check_clearance min_clear_m must be a number")
+        if threshold < 0.1 or threshold > 5.0:
+            raise AgentPlanValidationError("check_clearance min_clear_m is out of range")
+
+    if name == "detect_person":
+        if args:
+            raise AgentPlanValidationError("detect_person does not take arguments")
+        return
+
+    if name == "detect_object":
+        unknown = set(args) - {"object_name"}
+        if unknown:
+            raise AgentPlanValidationError("detect_object only accepts object_name")
+        object_name = args.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            raise AgentPlanValidationError("detect_object object_name must be a string")
+        try:
+            normalize_object_name(object_name)
+        except CameraConfigError as exc:
+            raise AgentPlanValidationError("detect_object object_name is not supported") from exc

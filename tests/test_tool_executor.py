@@ -81,6 +81,77 @@ class ToolExecutorTests(unittest.TestCase):
         self.assertEqual(results[0]["name"], "depth_probe")
         self.assertEqual(results[0]["error"], "unexpected_args")
 
+    def test_observe_scene_rejects_unexpected_args(self):
+        results = execute_tools([{"name": "observe_scene", "args": {"object_name": "person"}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "observe_scene")
+        self.assertEqual(results[0]["error"], "unexpected_args")
+
+    def test_check_clearance_accepts_valid_args_until_tool_call(self):
+        with patch("agent.tool_executor.call_tool") as mock_call:
+            from tools import ToolResult
+
+            mock_call.return_value = ToolResult(
+                ok=True,
+                action="check_clearance",
+                spoken_text="Path is clear.",
+                data={"clear": True},
+                display_face="camera",
+            )
+
+            results = execute_tools(
+                [{"name": "check_clearance", "args": {"min_clear_m": 0.5, "roi": "center"}}]
+            )
+
+        self.assertTrue(results[0]["ok"])
+        mock_call.assert_called_once_with("check_clearance", min_clear_m=0.5, roi="center")
+
+    def test_check_clearance_rejects_bad_threshold(self):
+        results = execute_tools([{"name": "check_clearance", "args": {"min_clear_m": 10.0}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "check_clearance")
+        self.assertEqual(results[0]["error"], "invalid_clearance_threshold")
+
+    def test_check_clearance_rejects_bad_roi(self):
+        results = execute_tools([{"name": "check_clearance", "args": {"roi": "wide"}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "check_clearance")
+        self.assertEqual(results[0]["error"], "invalid_clearance_roi")
+
+    def test_detect_person_rejects_unexpected_args(self):
+        results = execute_tools([{"name": "detect_person", "args": {"object_name": "person"}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "detect_person")
+        self.assertEqual(results[0]["error"], "unexpected_args")
+
+    def test_detect_object_rejects_unsupported_object(self):
+        results = execute_tools([{"name": "detect_object", "args": {"object_name": "hexapod"}}])
+
+        self.assertFalse(results[0]["ok"])
+        self.assertEqual(results[0]["name"], "detect_object")
+        self.assertEqual(results[0]["error"], "unsupported_object_class")
+
+    def test_detect_object_accepts_supported_object_until_tool_call(self):
+        with patch("agent.tool_executor.call_tool") as mock_call:
+            from tools import ToolResult
+
+            mock_call.return_value = ToolResult(
+                ok=True,
+                action="detect_object",
+                spoken_text="No bottle visible.",
+                data={"detected": False, "count": 0},
+                display_face="camera",
+            )
+
+            results = execute_tools([{"name": "detect_object", "args": {"object_name": "bottle"}}])
+
+        self.assertTrue(results[0]["ok"])
+        mock_call.assert_called_once_with("detect_object", object_name="bottle")
+
     def test_unknown_tool_name_returns_error(self):
         results = execute_tools([{"name": "make_coffee", "args": {}}])
 

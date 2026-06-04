@@ -62,7 +62,11 @@ class PromptContractTests(unittest.TestCase):
     def test_prompt_contains_camera_tool_examples(self):
         self.assertIn('"name":"camera_status"', SYSTEM_PROMPT)
         self.assertIn('"name":"capture_image"', SYSTEM_PROMPT)
+        self.assertIn('"name":"check_clearance"', SYSTEM_PROMPT)
         self.assertIn('"name":"depth_probe"', SYSTEM_PROMPT)
+        self.assertIn('"name":"observe_scene"', SYSTEM_PROMPT)
+        self.assertIn('"name":"detect_person"', SYSTEM_PROMPT)
+        self.assertIn('"name":"detect_object"', SYSTEM_PROMPT)
         self.assertIn('"label":"desk_test"', SYSTEM_PROMPT)
 
     def test_runtime_prompt_is_the_unified_system_prompt(self):
