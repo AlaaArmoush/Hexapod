@@ -1,0 +1,97 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2712";
+
+    /*
+     * Hexapod combined I2S overlay for Raspberry Pi 5.
+     *
+     * Shared I2S bus:
+     *   GPIO18 / pin 12 = I2S0_SCLK / BCLK
+     *   GPIO19 / pin 35 = I2S0_WS   / LRCLK
+     *
+     * INMP441 4-mic input:
+     *   GPIO20 / pin 38 = I2S0_SDI0
+     *     CH0 = L/R -> GND
+     *     CH1 = L/R -> 3.3V
+     *
+     *   GPIO22 / pin 15 = I2S0_SDI1
+     *     CH2 = L/R -> GND
+     *     CH3 = L/R -> 3.3V
+     *
+     * MAX98357A speaker output:
+     *   GPIO21 / pin 40 = I2S0_SDO0 -> DIN
+     *
+     * UPS HAT occupied pins to avoid:
+     *   3, 5, 25, 31, 36
+     */
+
+    fragment@0 {
+        target = <&rp1_i2s0_18_21>;
+        __overlay__ {
+            function = "i2s0";
+            pins = "gpio18", "gpio19", "gpio20", "gpio21", "gpio22";
+            bias-disable;
+        };
+    };
+
+    fragment@1 {
+        target = <&i2s_clk_producer>;
+        __overlay__ {
+            #sound-dai-cells = <0>;
+            status = "okay";
+        };
+    };
+
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            hexapod_dmic: hexapod-dmic-codec {
+                compatible = "dmic-codec";
+                #sound-dai-cells = <0>;
+                status = "okay";
+            };
+
+            hexapod_amp: hexapod-amp-codec {
+                compatible = "maxim,max98357a";
+                #sound-dai-cells = <0>;
+                status = "okay";
+            };
+
+            hexapod_soundcard: hexapod-soundcard {
+                compatible = "simple-audio-card";
+                simple-audio-card,name = "hexapod";
+                status = "okay";
+
+                simple-audio-card,dai-link@0 {
+                    format = "i2s";
+
+                    cpu {
+                        sound-dai = <&i2s_clk_producer>;
+                        dai-tdm-slot-num = <4>;
+                        dai-tdm-slot-width = <32>;
+                    };
+
+                    codec {
+                        sound-dai = <&hexapod_dmic>;
+                    };
+                };
+
+                simple-audio-card,dai-link@1 {
+                    format = "i2s";
+
+                    cpu {
+                        sound-dai = <&i2s_clk_producer>;
+                        dai-tdm-slot-num = <2>;
+                        dai-tdm-slot-width = <32>;
+                    };
+
+                    codec {
+                        sound-dai = <&hexapod_amp>;
+                    };
+                };
+            };
+        };
+    };
+};
