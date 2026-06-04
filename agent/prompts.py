@@ -63,7 +63,8 @@ Robot command examples:
 {{"name":"robot_command","args":{{"cmd":"gait","dir":"forward","speed":0.03,"steps":1}}}}
 {{"name":"robot_command","args":{{"cmd":"rotate","dir":"right","cycles":3}}}}
 {{"name":"robot_command","args":{{"cmd":"gesture","name":"happy","intensity":0.7}}}}
-Other valid robot cmd values: ping, blink, body, face, idle, lean, look, nod, shake.
+Other valid robot cmd values: ping, blink, body, face, idle, lean, look, nod, shake, camera_pan, camera_center.
+Camera head / face pan cmd values: camera_pan with pos left, front_left, center, front_right, right; camera_center with no args. Use front_left/front_right for attention toward wake-word direction, not raw angles.
 
 Robot rules: wave leg LF/RF only. Default wave count 2. Normal gait speed 0.03. Use bounded steps/duration for movement. Convert degrees to rotate cycles: 30 degrees=1, 45 degrees=2, 90 degrees=3, 180 degrees=6, 360 degrees=12. Do not use continuous rotation. For greetings, use a short speak plus wave. For simple movement, speak may be empty.
 Never output shell commands, Python code, motor angles, or low-level hardware writes.

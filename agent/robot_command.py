@@ -8,6 +8,8 @@ from bridge import BridgeError
 from bridge.robot_commands import (
     build_blink,
     build_body,
+    build_camera_center,
+    build_camera_pan,
     build_face,
     build_gait,
     build_gesture,
@@ -194,6 +196,11 @@ def _build_shake(args: dict[str, Any]) -> dict[str, Any]:
     return build_shake(count=args.get("count", 2))
 
 
+def _build_camera_pan(args: dict[str, Any]) -> dict[str, Any]:
+    _ensure_allowed_args(args, {"pos"})
+    return build_camera_pan(pos=args.get("pos", "center"))
+
+
 def _ensure_allowed_args(args: dict[str, Any], allowed: set[str]) -> None:
     unexpected = set(args) - allowed
     if unexpected:
@@ -218,4 +225,6 @@ _COMMAND_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "look": _build_look,
     "nod": _build_nod,
     "shake": _build_shake,
+    "camera_pan": _build_camera_pan,
+    "camera_center": _no_args(build_camera_center),
 }

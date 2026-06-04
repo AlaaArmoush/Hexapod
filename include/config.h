@@ -60,6 +60,21 @@
 #define LOOK_BODY_OFFSET_Y    25.0f
 #define LOOK_BODY_OFFSET_X    18.0f
 
+// Camera head / face pan servo — MG996R on PCA9685.
+// Default: board 0 (0x40), channel 7. Keep board/channel centralized for wiring changes.
+#define CAMERA_SERVO_BOARD              0
+#define CAMERA_SERVO_CHANNEL            7
+#define CAMERA_SERVO_MIN_DEG            30
+#define CAMERA_SERVO_MAX_DEG            150
+#define CAMERA_SERVO_TRIM               0
+#define CAMERA_PAN_LEFT_DEG             140
+#define CAMERA_PAN_FRONT_LEFT_DEG       120
+#define CAMERA_PAN_CENTER_DEG           90
+#define CAMERA_PAN_FRONT_RIGHT_DEG      60
+#define CAMERA_PAN_RIGHT_DEG            40
+#define CAMERA_SERVO_SLEW_DEG_PER_UPDATE 2
+#define CAMERA_SERVO_UPDATE_MS          20UL
+
 // Sit pose targets copied from the sitting branch global sit() function.
 #define SIT_FEMUR_DELTA   75
 #define SIT_TIBIA_DELTA   30

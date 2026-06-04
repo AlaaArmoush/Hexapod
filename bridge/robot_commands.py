@@ -27,6 +27,7 @@ DEGREES_PER_CYCLE = 30
 LEAN_DIRECTIONS = {"left", "right", "forward", "backward"}
 LOOK_DIRECTIONS = {"left", "right", "up", "down", "center"}
 IDLE_STYLES = {"breathing", "sway"}
+CAMERA_PAN_POSITIONS = {"left", "front_left", "slight_left", "center", "front_right", "slight_right", "right"}
 
 
 def _ensure_number(value: object, name: str) -> int | float:
@@ -266,3 +267,18 @@ def build_shake(count: int = 2) -> dict:
     _ensure_int(count, "count")
     _ensure_positive(count, "count")
     return {"cmd": "shake", "count": count}
+
+
+def build_camera_pan(pos: str = "center") -> dict:
+    pos = _ensure_string(pos, "pos")
+    if pos not in CAMERA_PAN_POSITIONS:
+        raise InvalidParameterError(f"camera_pan pos must be one of {sorted(CAMERA_PAN_POSITIONS)}, got {pos!r}")
+    normalized = {
+        "slight_left": "front_left",
+        "slight_right": "front_right",
+    }.get(pos, pos)
+    return _ensure_no_forbidden_fields({"cmd": "camera_pan", "pos": normalized})
+
+
+def build_camera_center() -> dict:
+    return {"cmd": "camera_center"}

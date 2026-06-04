@@ -62,6 +62,11 @@ class RobotCommandTests(unittest.TestCase):
         self.assertEqual(compile_robot_command({"cmd": "idle", "style": "sway"}), {"cmd": "idle", "style": "sway"})
         self.assertEqual(compile_robot_command({"cmd": "look", "dir": "center"}), {"cmd": "look", "dir": "center"})
         self.assertEqual(compile_robot_command({"cmd": "nod", "count": 2}), {"cmd": "nod", "count": 2})
+        self.assertEqual(
+            compile_robot_command({"cmd": "camera_pan", "pos": "front_right"}),
+            {"cmd": "camera_pan", "pos": "front_right"},
+        )
+        self.assertEqual(compile_robot_command({"cmd": "camera_center"}), {"cmd": "camera_center"})
 
 
 if __name__ == "__main__":

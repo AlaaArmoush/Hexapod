@@ -188,6 +188,8 @@ def test_wait_for_status_returns_status_response():
         ("look", (), {"dir": "center", "persistent": True}, b'{"cmd":"look","dir":"center","persistent":true}\n', "look"),
         ("nod", (), {"count": 2}, b'{"cmd":"nod","count":2}\n', "nod"),
         ("shake", (), {"count": 2}, b'{"cmd":"shake","count":2}\n', "shake"),
+        ("camera_pan", (), {"pos": "front_left"}, b'{"cmd":"camera_pan","pos":"front_left"}\n', "camera_pan"),
+        ("camera_center", (), {}, b'{"cmd":"camera_center"}\n', "camera_center"),
     ],
 )
 def test_high_level_methods_send_command_and_wait_for_ok(method_name, args, kwargs, expected_write, expected_cmd):

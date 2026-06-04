@@ -11,6 +11,8 @@ from bridge import BridgeError, FirmwareError, SerialRobotBridge, TimeoutError
 from bridge.robot_commands import (
     build_blink,
     build_body,
+    build_camera_center,
+    build_camera_pan,
     build_face,
     build_gait,
     build_gesture,
@@ -158,6 +160,11 @@ def _add_command_parsers(subparsers: argparse._SubParsersAction) -> dict[str, Co
 
     parser = add("shake", lambda args: build_shake(count=args.count))
     parser.add_argument("--count", type=int, default=2)
+
+    parser = add("camera_pan", lambda args: build_camera_pan(pos=args.pos))
+    parser.add_argument("pos", choices=["left", "front_left", "slight_left", "center", "front_right", "slight_right", "right"])
+
+    add("camera_center", lambda args: build_camera_center())
 
     return builders
 

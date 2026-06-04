@@ -1,4 +1,5 @@
 #include "command_router.h"
+#include "camera_head_controller.h"
 #include "display_controller.h"
 #include "gait_controller.h"
 #include "robot_controller.h"
@@ -26,6 +27,8 @@ static const char* commandName(RobotCommandType type) {
     case ROBOT_CMD_NOD: return "nod";
     case ROBOT_CMD_SHAKE: return "shake";
     case ROBOT_CMD_IDLE_STYLE: return "idle";
+    case ROBOT_CMD_CAMERA_PAN: return "camera_pan";
+    case ROBOT_CMD_CAMERA_CENTER: return "camera_center";
     case ROBOT_CMD_NONE: return "unknown";
   }
   return "unknown";
@@ -65,6 +68,10 @@ static void sendStatus() {
   Serial.print(status.rotateCyclesDone);
   Serial.print(",\"rotate_continuous\":");
   Serial.print(status.rotateContinuous ? "true" : "false");
+  Serial.print(",\"head_pan_position\":\"");
+  Serial.print(status.headPanPosition);
+  Serial.print("\",\"head_pan_running\":");
+  Serial.print(status.headPanRunning ? "true" : "false");
   Serial.print(",\"interruptible\":");
   Serial.print(status.interruptible ? "true" : "false");
   Serial.print(",\"last_error\":\"");
@@ -164,6 +171,13 @@ static void sendInvalidFace(const char* face) {
   robotSetLastError("invalid_face");
   Serial.print("{\"ok\":false,\"error\":\"invalid_face\",\"face\":\"");
   Serial.print(face ? face : "");
+  Serial.println("\"}");
+}
+
+static void sendInvalidCameraPanPosition(const char* pos) {
+  robotSetLastError("invalid_pan_position");
+  Serial.print("{\"ok\":false,\"cmd\":\"camera_pan\",\"error\":\"invalid_pan_position\",\"value\":\"");
+  Serial.print(pos ? pos : "");
   Serial.println("\"}");
 }
 
@@ -315,6 +329,28 @@ void routeCommand(const RobotCommand& command) {
         return;
       }
       ok = robotCommandIdleStyle(command.idleStyle);
+      break;
+    case ROBOT_CMD_CAMERA_PAN:
+      if (command.cameraPan.invalidPos) {
+        sendInvalidCameraPanPosition(command.cameraPan.posName);
+        return;
+      }
+      ok = robotCommandCameraPan(command.cameraPan);
+      if (ok) {
+        robotSetLastError("");
+        Serial.print("{\"ok\":true,\"cmd\":\"camera_pan\",\"pos\":\"");
+        Serial.print(cameraPanPosName(command.cameraPan.pos));
+        Serial.println("\"}");
+        return;
+      }
+      break;
+    case ROBOT_CMD_CAMERA_CENTER:
+      ok = robotCommandCameraCenter();
+      if (ok) {
+        robotSetLastError("");
+        Serial.println("{\"ok\":true,\"cmd\":\"camera_center\",\"pos\":\"center\"}");
+        return;
+      }
       break;
     case ROBOT_CMD_NONE:
       sendUnknownCommand(command);
