@@ -1,6 +1,8 @@
 import time
+
 import numpy as np
 import sounddevice as sd
+
 
 SAMPLE_RATE = 48000
 BLOCK_SIZE = 2048
@@ -8,17 +10,20 @@ CHANNELS = 4
 PRINT_EVERY_SECONDS = 2.0
 EPS = 1e-12
 
-# Rename these after final physical placement.
+# Adjust names only if physical mic placement changes.
+# Electrical rule:
+# CH0 = GPIO20/pin38, L/R -> GND
+# CH1 = GPIO20/pin38, L/R -> 3.3V
+# CH2 = GPIO22/pin15, L/R -> GND
+# CH3 = GPIO22/pin15, L/R -> 3.3V
 MIC_NAMES = [
-    "CH0_PAIR1_LEFT",
-    "CH1_PAIR1_RIGHT",
-    "CH2_PAIR2_LEFT",
-    "CH3_PAIR2_RIGHT",
+    "CH0_PIN38_GND",
+    "CH1_PIN38_3V3",
+    "CH2_PIN15_GND",
+    "CH3_PIN15_3V3",
 ]
 
-# None usually works if hexapod-4mic is the default input.
-# If not, set this to the sounddevice input index for hexapod-4mic.
-DEVICE = None
+DEVICE = 1  # combined overlay capture device: hexapod hw:0,1
 
 energy = np.zeros(CHANNELS, dtype=np.float64)
 sample_count = 0
@@ -29,10 +34,10 @@ def rms_to_dbfs(rms: float) -> float:
     return 20.0 * np.log10(max(float(rms), EPS))
 
 
-def make_bar(dbfs: float, min_db: float = -70.0, max_db: float = -20.0, width: int = 24) -> str:
+def make_bar(dbfs: float, min_db: float = -65.0, max_db: float = -25.0, width: int = 32) -> str:
     dbfs = max(min_db, min(max_db, dbfs))
     filled = int((dbfs - min_db) / (max_db - min_db) * width)
-    return "█" * filled + "-" * (width - filled)
+    return "#" * filled + "-" * (width - filled)
 
 
 def callback(indata, frames, time_info, status):
@@ -46,11 +51,11 @@ def callback(indata, frames, time_info, status):
         return
 
     x = indata[:, :CHANNELS].astype(np.float64)
-
     energy += np.sum(x * x, axis=0)
     sample_count += x.shape[0]
 
     now = time.time()
+
     if now - last_print >= PRINT_EVERY_SECONDS:
         rms = np.sqrt(energy / max(sample_count, 1))
         db = np.array([rms_to_dbfs(v) for v in rms])
@@ -59,24 +64,21 @@ def callback(indata, frames, time_info, status):
         sorted_db = np.sort(db)
         advantage_db = sorted_db[-1] - sorted_db[-2]
 
-        if advantage_db < 3.0:
-            direction = "UNCERTAIN"
-        else:
-            direction = MIC_NAMES[leader]
-
         print()
-        print(f"Leading direction: {direction} | lead advantage: {advantage_db:.1f} dB")
+        print(f"Leading mic: {MIC_NAMES[leader]} | advantage: {advantage_db:.1f} dB")
 
-        for i in range(CHANNELS):
-            marker = "<-- LEADER" if i == leader and advantage_db >= 3.0 else ""
+        order = list(np.argsort(db)[::-1])
+        for rank, i in enumerate(order, start=1):
+            marker = "<<< LEADER" if i == leader else ""
             print(
-                f"  CH{i} {MIC_NAMES[i]:18} "
-                f"RMS={rms[i]:.6f}  "
-                f"dBFS={db[i]:7.1f}  "
-                f"{make_bar(db[i])} {marker}"
+                f"  #{rank} CH{i} {MIC_NAMES[i]:14} "
+                f"{make_bar(db[i])} "
+                f"RMS={rms[i]:.6f} "
+                f"dBFS={db[i]:7.1f} "
+                f"{marker}"
             )
 
-        print("-" * 90)
+        print("-" * 100)
 
         energy[:] = 0.0
         sample_count = 0
@@ -87,12 +89,8 @@ def main():
     print("Available devices:")
     print(sd.query_devices())
     print()
-    print("Listening with 4 mics. Updates every 2 seconds. Ctrl+C to stop.")
-    print("Expected mapping:")
-    print("  CH0 = pair 1 left  / GPIO20 left slot")
-    print("  CH1 = pair 1 right / GPIO20 right slot")
-    print("  CH2 = pair 2 left  / GPIO22 left slot")
-    print("  CH3 = pair 2 right / GPIO22 right slot")
+    print("4-mic mapping test. Updates every 2 seconds.")
+    print("DEVICE = 1 because combined card capture is hw:0,1")
     print()
 
     with sd.InputStream(

@@ -5,3 +5,4 @@ opencv-python-headless~=4.10.0
 pyserial>=3.5
 pytest>=8.0
 requests>=2.31
+sounddevice>=0.4.6
