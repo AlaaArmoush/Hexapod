@@ -12,6 +12,10 @@ class CameraConfigError(CameraError):
     error_code = "invalid_camera_config"
 
 
+class CameraUnsupportedObjectClass(CameraConfigError):
+    error_code = "unsupported_object_class"
+
+
 class CameraDependencyError(CameraError):
     error_code = "depthai_not_available"
 
@@ -34,3 +38,11 @@ class CameraStereoUnavailable(CameraError):
 
 class CameraDepthError(CameraError):
     error_code = "depth_unavailable"
+
+
+class CameraDetectorError(CameraError):
+    error_code = "detector_unavailable"
+
+
+class CameraDetectorCrashed(CameraDetectorError):
+    error_code = "detector_crashed"

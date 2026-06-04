@@ -35,6 +35,7 @@ EXPECTED_TOOL_NAMES = {
     "capture_image",
     "check_clearance",
     "depth_probe",
+    "observe_scene",
     "describe_scene",
     "detect_person",
     "detect_object",
@@ -62,6 +63,9 @@ IMPLEMENTED_TOOL_NAMES = {
     "capture_image",
     "check_clearance",
     "depth_probe",
+    "detect_person",
+    "detect_object",
+    "observe_scene",
     "camera_status",
 }
 
@@ -104,7 +108,7 @@ class ToolContractTests(unittest.TestCase):
     def test_registry_completeness(self):
         names = {tool.name for tool in TOOL_REGISTRY}
         self.assertEqual(names, EXPECTED_TOOL_NAMES)
-        self.assertEqual(len(TOOL_REGISTRY), 24)
+        self.assertEqual(len(TOOL_REGISTRY), 25)
 
         for tool in TOOL_REGISTRY:
             self.assertIsInstance(tool, ToolMeta)
@@ -113,7 +117,7 @@ class ToolContractTests(unittest.TestCase):
             self.assertIsNotNone(tool.fn)
 
     def test_lookup_helpers(self):
-        self.assertEqual(len(list_all()), 24)
+        self.assertEqual(len(list_all()), 25)
         self.assertEqual({tool.name for tool in list_implemented()}, IMPLEMENTED_TOOL_NAMES)
         self.assertEqual(get_tool(" GET_TIME ").name, "get_time")
         self.assertIsNone(get_tool("missing_tool"))

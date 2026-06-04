@@ -12,8 +12,20 @@ from .config import (
     DEPTH_FPS,
     DEPTH_HEIGHT,
     DEPTH_WIDTH,
+    DETECTION_CONFIDENCE_THRESHOLD,
+    DETECTION_DEVICE_RETRIES,
+    DETECTION_FPS,
+    DETECTION_MAX_RESULTS,
+    DETECTION_MODEL_YAML,
+    DETECTION_RETRY_DELAY_S,
     ensure_capture_dir,
     sanitize_capture_label,
+)
+from .detection import (
+    DetectionResult,
+    detection_from_yolo_box,
+    filter_detections,
+    normalize_object_name,
 )
 from .depth import DepthProbeResult, summarize_center_depth
 from .errors import (
@@ -21,10 +33,13 @@ from .errors import (
     CameraDependencyError,
     CameraDeviceNotFound,
     CameraDepthError,
+    CameraDetectorError,
+    CameraDetectorCrashed,
     CameraError,
     CameraPipelineError,
     CameraStereoUnavailable,
 )
+from .yolo_decode import decode_yolov6_outputs
 
 
 @dataclass(frozen=True)
@@ -56,6 +71,9 @@ class CameraProvider(Protocol):
     def depth_probe(self) -> DepthProbeResult:
         ...
 
+    def detect_objects(self, target_label: str | None = None) -> DetectionResult:
+        ...
+
     def close(self) -> None:
         ...
 
@@ -78,7 +96,7 @@ class DepthAICameraProvider:
         dai = self._import_depthai()
 
         try:
-            device = dai.Device()
+            device = self._open_device_with_retries(dai)
             with dai.Pipeline(device) as pipeline:
                 color = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
                 color_out = color.requestOutput(
@@ -196,6 +214,77 @@ class DepthAICameraProvider:
         except Exception as exc:
             raise self._camera_exception(exc, depth=True) from exc
 
+    def detect_objects(self, target_label: str | None = None) -> DetectionResult:
+        dai = self._import_depthai()
+        normalized_target = normalize_object_name(target_label) if target_label else None
+
+        try:
+            device = dai.Device()
+            platform = device.getPlatform().name
+            if platform != "RVC2":
+                raise CameraDetectorError(f"Unsupported detector platform: {platform}")
+
+            features = device.getConnectedCameraFeatures()
+            if self._camera_feature(features, dai.CameraBoardSocket.CAM_A) is None:
+                raise CameraDeviceNotFound("Color camera CAM_A is required for detections.")
+
+            with dai.Pipeline(device) as pipeline:
+                model_description = dai.NNModelDescription.fromYamlFile(str(DETECTION_MODEL_YAML))
+                nn_archive = dai.NNArchive(dai.getModelFromZoo(model_description))
+                classes = nn_archive.getConfig().model.heads[0].metadata.classes
+                nn_size = nn_archive.getInputSize()
+
+                color = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
+                color_out = color.requestOutput(nn_size, dai.ImgFrame.Type.BGR888p, fps=DETECTION_FPS)
+                manip = pipeline.create(dai.node.ImageManip)
+                manip.initialConfig.setOutputSize(*nn_size)
+                manip.initialConfig.setFrameType(dai.ImgFrame.Type.BGR888p)
+                manip.setMaxOutputFrameSize(nn_size[0] * nn_size[1] * 3)
+                color_out.link(manip.inputImage)
+                network = pipeline.create(dai.node.NeuralNetwork).build(manip.out, nn_archive)
+                queue = network.out.createOutputQueue(maxSize=1, blocking=True)
+
+                pipeline.start()
+                nn_msg = queue.get()
+                captured_ms = int(time.time() * 1000)
+                tensors = [
+                    nn_msg.getTensor(
+                        tensor_name,
+                        dequantize=True,
+                        storageOrder=dai.TensorInfo.StorageOrder.NCHW,
+                    )
+                    for tensor_name in ["output1_yolov6r2", "output2_yolov6r2", "output3_yolov6r2"]
+                ]
+                decoded = decode_yolov6_outputs(
+                    tensors,
+                    confidence_threshold=DETECTION_CONFIDENCE_THRESHOLD,
+                    iou_threshold=0.45,
+                    num_classes=len(classes),
+                )
+                detections = []
+                for box in decoded:
+                    label_index = int(box[5])
+                    if label_index < 0 or label_index >= len(classes):
+                        continue
+                    detections.append(detection_from_yolo_box(box, str(classes[label_index]), nn_size))
+
+                filtered = filter_detections(
+                    detections,
+                    target_label=normalized_target,
+                    confidence_threshold=DETECTION_CONFIDENCE_THRESHOLD,
+                    max_results=DETECTION_MAX_RESULTS,
+                )
+                ended_ms = int(time.time() * 1000)
+                return DetectionResult(
+                    target_label=normalized_target,
+                    detections=filtered,
+                    frame_age_ms=max(0, ended_ms - captured_ms),
+                )
+        except CameraError:
+            raise
+        except Exception as exc:
+            raise self._camera_exception(exc, detection=True) from exc
+
     def close(self) -> None:
         return None
 
@@ -231,6 +320,18 @@ class DepthAICameraProvider:
         return str(device_info)
 
     @staticmethod
+    def _open_device_with_retries(dai):
+        last_exc = None
+        for attempt in range(DETECTION_DEVICE_RETRIES):
+            try:
+                return dai.Device()
+            except Exception as exc:
+                last_exc = exc
+                if attempt < DETECTION_DEVICE_RETRIES - 1:
+                    time.sleep(DETECTION_RETRY_DELAY_S)
+        raise last_exc
+
+    @staticmethod
     def _capture_filename(timestamp_ms: int, label: str | None) -> str:
         stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(timestamp_ms / 1000))
         suffix = f"_{label}" if label else ""
@@ -243,10 +344,15 @@ class DepthAICameraProvider:
         pipeline: bool = False,
         capture: bool = False,
         depth: bool = False,
+        detection: bool = False,
     ) -> CameraError:
         message = str(exc)
         if "No available devices" in message or "Device already closed" in message:
             return CameraDeviceNotFound(message)
+        if detection and ("crashed" in message.lower() or "asset transfer" in message.lower()):
+            return CameraDetectorCrashed(message)
+        if detection:
+            return CameraDetectorError(message)
         if depth:
             return CameraDepthError(message)
         if pipeline:
