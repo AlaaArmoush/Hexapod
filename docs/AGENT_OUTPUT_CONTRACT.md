@@ -177,6 +177,7 @@ get_time
 local_file_lookup
 mic_status
 network_status
+observe_scene
 read_project_note
 recall_memory
 remember_fact

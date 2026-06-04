@@ -64,6 +64,9 @@ class PromptContractTests(unittest.TestCase):
         self.assertIn('"name":"capture_image"', SYSTEM_PROMPT)
         self.assertIn('"name":"check_clearance"', SYSTEM_PROMPT)
         self.assertIn('"name":"depth_probe"', SYSTEM_PROMPT)
+        self.assertIn('"name":"observe_scene"', SYSTEM_PROMPT)
+        self.assertIn('"name":"detect_person"', SYSTEM_PROMPT)
+        self.assertIn('"name":"detect_object"', SYSTEM_PROMPT)
         self.assertIn('"label":"desk_test"', SYSTEM_PROMPT)
 
     def test_runtime_prompt_is_the_unified_system_prompt(self):

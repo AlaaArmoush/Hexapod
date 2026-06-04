@@ -6,6 +6,8 @@ import re
 from typing import Any
 
 from tools import ToolResult, call_tool, get_tool
+from camera.detection import normalize_object_name
+from camera.errors import CameraConfigError
 
 from .robot_command_repair import repair_robot_command_from_text
 from .robot_executor import RobotExecutor
@@ -19,11 +21,10 @@ NO_ARG_TOOLS = {
     "battery_status",
     "camera_status",
     "depth_probe",
+    "observe_scene",
 }
 FUTURE_TOOLS = {
     "describe_scene",
-    "detect_person",
-    "detect_object",
     "mic_status",
     "voice_direction_estimate",
     "tell_joke",
@@ -219,6 +220,24 @@ def _validate_tool_args(name: str, args: dict[str, Any]) -> str | None:
             return "invalid_clearance_threshold"
         return None
 
+    if name == "detect_person":
+        if args:
+            return "unexpected_args"
+        return None
+
+    if name == "detect_object":
+        unexpected = set(args) - {"object_name"}
+        if unexpected:
+            return "unexpected_args"
+        object_name = args.get("object_name")
+        if not isinstance(object_name, str) or not object_name.strip():
+            return "missing_object_name"
+        try:
+            normalize_object_name(object_name)
+        except CameraConfigError:
+            return "unsupported_object_class"
+        return None
+
     if name in FUTURE_TOOLS:
         return None
 
@@ -251,6 +270,8 @@ def _tool_call_args(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if "roi" in args:
             kwargs["roi"] = args["roi"]
         return kwargs
+    if name == "detect_object":
+        return {"object_name": normalize_object_name(args["object_name"])}
     return args
 
 
@@ -309,5 +330,7 @@ def _message_for_error(error: str) -> str:
         "invalid_label": "That image label is not safe.",
         "invalid_clearance_roi": "That clearance region is not supported.",
         "invalid_clearance_threshold": "Clearance threshold must be between 0.1 and 5.0 metres.",
+        "missing_object_name": "I need an object name for that.",
+        "unsupported_object_class": "That object class is not supported.",
     }
     return messages.get(error, "I could not run that tool.")

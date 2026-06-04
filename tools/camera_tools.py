@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from camera.errors import CameraConfigError, CameraError
 from camera.clearance import clearance_from_depth
+from camera.detection import normalize_object_name
 from camera.provider import DepthAICameraProvider
 
 from .base import ToolResult
@@ -120,6 +121,112 @@ def check_clearance(min_clear_m: float | int | None = None, roi: str = "center")
             "depth_height": clearance.depth_height,
         },
         display_face=display_face,
+    )
+
+
+def detect_person() -> ToolResult:
+    return _detect_target("detect_person", "person")
+
+
+def observe_scene() -> ToolResult:
+    provider = DepthAICameraProvider()
+    try:
+        result = provider.detect_objects(target_label=None)
+    except CameraError as exc:
+        return _camera_error("observe_scene", exc, "Observation unavailable.")
+    finally:
+        provider.close()
+
+    detections = [detection.to_dict() for detection in result.detections]
+    if not detections:
+        spoken_text = "I do not see any supported objects clearly."
+    else:
+        labels = []
+        for detection in result.detections:
+            if detection.label not in labels:
+                labels.append(detection.label)
+        if len(labels) == 1:
+            spoken_text = f"I can see {labels[0]}."
+        elif len(labels) == 2:
+            spoken_text = f"I can see {labels[0]} and {labels[1]}."
+        else:
+            spoken_text = f"I can see {', '.join(labels[:3])}."
+
+    return ToolResult(
+        ok=True,
+        action="observe_scene",
+        spoken_text=spoken_text,
+        data={
+            "detected": bool(detections),
+            "count": len(detections),
+            "detections": detections,
+            "frame_age_ms": result.frame_age_ms,
+            "source": result.source,
+        },
+        display_face="camera",
+    )
+
+
+def detect_object(object_name: str) -> ToolResult:
+    try:
+        target = normalize_object_name(object_name)
+    except CameraConfigError as exc:
+        return ToolResult(
+            ok=False,
+            action="detect_object",
+            spoken_text="That object class is not supported.",
+            data={"object_name": object_name},
+            display_face="camera",
+            error=exc.error_code,
+        )
+    return _detect_target("detect_object", target, object_name=target)
+
+
+def _detect_target(action: str, target_label: str, *, object_name: str | None = None) -> ToolResult:
+    provider = DepthAICameraProvider()
+    try:
+        result = provider.detect_objects(target_label=target_label)
+    except CameraConfigError as exc:
+        return _camera_error(action, exc, "That object class is not supported.")
+    except CameraError as exc:
+        return _camera_error(action, exc, "Detection unavailable.")
+    finally:
+        provider.close()
+
+    detections = [detection.to_dict() for detection in result.detections]
+    data = {
+        "detected": result.detected,
+        "count": result.count,
+        "detections": detections,
+        "frame_age_ms": result.frame_age_ms,
+        "source": result.source,
+    }
+    if object_name is not None:
+        data["object_name"] = object_name
+
+    if not result.detected:
+        spoken_text = (
+            "No person visible."
+            if target_label == "person"
+            else f"No {target_label} visible."
+        )
+    else:
+        first = result.detections[0]
+        if first.distance_m is None:
+            distance_text = ""
+        else:
+            distance_text = f" about {first.distance_m:.1f} metres away"
+        if result.count == 1:
+            spoken_text = f"I can see one {target_label}{distance_text}."
+        else:
+            spoken_text = f"I can see {result.count} {target_label}s{distance_text}."
+
+    return ToolResult(
+        ok=True,
+        action=action,
+        spoken_text=spoken_text,
+        data=data,
+        display_face="camera",
     )
 
 
