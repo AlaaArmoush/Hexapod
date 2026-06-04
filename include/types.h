@@ -20,7 +20,8 @@ enum RobotMode {
   ROBOT_MODE_ROTATING,
   ROBOT_MODE_WAVING,
   ROBOT_MODE_GESTURE,
-  ROBOT_MODE_BODY
+  ROBOT_MODE_BODY,
+  ROBOT_MODE_CAMERA_PAN
 };
 
 enum RobotCommandType {
@@ -41,7 +42,17 @@ enum RobotCommandType {
   ROBOT_CMD_LOOK,
   ROBOT_CMD_NOD,
   ROBOT_CMD_SHAKE,
-  ROBOT_CMD_IDLE_STYLE
+  ROBOT_CMD_IDLE_STYLE,
+  ROBOT_CMD_CAMERA_PAN,
+  ROBOT_CMD_CAMERA_CENTER
+};
+
+enum CameraPanPos {
+  CAM_PAN_LEFT,
+  CAM_PAN_FRONT_LEFT,
+  CAM_PAN_CENTER,
+  CAM_PAN_FRONT_RIGHT,
+  CAM_PAN_RIGHT
 };
 
 enum StopMode {
@@ -147,6 +158,12 @@ struct IdleStyleCommand {
   bool invalidStyle = false;
 };
 
+struct CameraPanCommand {
+  CameraPanPos pos = CAM_PAN_CENTER;
+  char posName[16] = "center";
+  bool invalidPos = false;
+};
+
 struct RobotCommand {
   RobotCommandType type = ROBOT_CMD_NONE;
   char cmdName[20] = "";
@@ -163,6 +180,7 @@ struct RobotCommand {
   LookCommand look;
   NodShakeCommand nodShake;
   IdleStyleCommand idleStyle;
+  CameraPanCommand cameraPan;
 };
 
 struct RobotStatus {
@@ -185,6 +203,8 @@ struct RobotStatus {
   int rotateCyclesTarget = 0;
   int rotateCyclesDone = 0;
   bool rotateContinuous = false;
+  const char* headPanPosition = "center";
+  bool headPanRunning = false;
   bool interruptible = true;
   const char* lastError = "";
 };

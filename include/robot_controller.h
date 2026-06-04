@@ -17,6 +17,8 @@ bool robotCommandLook(LookCommand command);
 bool robotCommandNod(NodShakeCommand command);
 bool robotCommandShake(NodShakeCommand command);
 bool robotCommandIdleStyle(IdleStyleCommand command);
+bool robotCommandCameraPan(CameraPanCommand command);
+bool robotCommandCameraCenter();
 RobotStatus robotGetStatus();
 const char* robotModeName(RobotMode mode);
 void robotSetLastError(const char* error);

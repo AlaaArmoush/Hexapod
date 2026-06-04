@@ -1,4 +1,5 @@
 #include "robot_controller.h"
+#include "camera_head_controller.h"
 #include "config.h"
 #include "display_controller.h"
 #include "gait_controller.h"
@@ -12,6 +13,7 @@
 
 static RobotMode currentRobotMode = ROBOT_MODE_IDLE;
 static char lastError[32] = "";
+static const char* activeCameraHeadCmd = "camera_pan";
 
 static bool equalsIgnoreCase(const char* a, const char* b) {
   if (!a || !b) return false;
@@ -72,6 +74,9 @@ static void syncFaceToMode(RobotMode mode) {
     case ROBOT_MODE_BODY:
       displaySetFace(FACE_NEUTRAL);
       break;
+    case ROBOT_MODE_CAMERA_PAN:
+      displaySetTemporaryFace(FACE_LISTENING, 0);
+      break;
   }
 }
 
@@ -81,10 +86,12 @@ static void setRobotMode(RobotMode mode) {
 }
 
 void robotInit() {
+  cameraHeadInit();
   setRobotMode(ROBOT_MODE_IDLE);
 }
 
 void robotUpdate() {
+  cameraHeadUpdate();
   if (currentRobotMode == ROBOT_MODE_SITTING) {
     if (poseSitUpdate()) setRobotMode(ROBOT_MODE_IDLE);
   } else if (currentRobotMode == ROBOT_MODE_GAIT) {
@@ -106,6 +113,15 @@ void robotUpdate() {
       setRobotMode(ROBOT_MODE_STANDING);
       Serial.print("{\"event\":\"done\",\"cmd\":\"");
       Serial.print(doneCmd && doneCmd[0] ? doneCmd : "gesture");
+      Serial.println("\",\"state\":\"standing\"}");
+    }
+  } else if (currentRobotMode == ROBOT_MODE_CAMERA_PAN) {
+    if (!cameraHeadIsRunning() && cameraHeadIsDone()) {
+      setRobotMode(ROBOT_MODE_STANDING);
+      Serial.print("{\"event\":\"done\",\"cmd\":\"");
+      Serial.print(activeCameraHeadCmd);
+      Serial.print("\",\"pos\":\"");
+      Serial.print(cameraPanPosName(cameraHeadCurrentPos()));
       Serial.println("\",\"state\":\"standing\"}");
     }
   }
@@ -130,6 +146,7 @@ bool robotCommandStop(StopMode mode) {
   gaitStopSmooth();
   rotateStop();
   gestureStop();
+  cameraHeadStop();
   setRobotMode(ROBOT_MODE_IDLE);
   return true;
 }
@@ -222,6 +239,28 @@ bool robotCommandIdleStyle(IdleStyleCommand command) {
   return true;
 }
 
+bool robotCommandCameraPan(CameraPanCommand command) {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  activeCameraHeadCmd = "camera_pan";
+  if (!cameraHeadStart(command.pos)) return false;
+  currentRobotMode = ROBOT_MODE_CAMERA_PAN;
+  displaySetTemporaryFace(FACE_LISTENING, 0);
+  return true;
+}
+
+bool robotCommandCameraCenter() {
+  robotCommandStop(STOP_MODE_SMOOTH);
+  activeCameraHeadCmd = "camera_center";
+  CameraPanCommand command;
+  command.pos = CAM_PAN_CENTER;
+  strncpy(command.posName, "center", sizeof(command.posName) - 1);
+  command.posName[sizeof(command.posName) - 1] = '\0';
+  if (!cameraHeadStart(command.pos)) return false;
+  currentRobotMode = ROBOT_MODE_CAMERA_PAN;
+  displaySetTemporaryFace(FACE_LISTENING, 0);
+  return true;
+}
+
 RobotStatus robotGetStatus() {
   RobotStatus status;
   status.mode = currentRobotMode;
@@ -232,6 +271,8 @@ RobotStatus robotGetStatus() {
   status.lastError = lastError;
   status.face = displayFaceName(displayGetCurrentFace());
   status.faceTemporary = displayIsTemporaryFace();
+  status.headPanPosition = cameraPanPosName(cameraHeadCurrentPos());
+  status.headPanRunning = cameraHeadIsRunning();
 
   if (status.gaitRunning) {
     const GaitCommand& command = gaitCurrentCommand();
@@ -256,6 +297,8 @@ RobotStatus robotGetStatus() {
     status.gesture = gestureCurrentName();
     if (currentRobotMode == ROBOT_MODE_WAVING) status.activeCmd = "wave";
     else status.activeCmd = activeCmdForGestureName(status.gesture);
+  } else if (cameraHeadIsRunning()) {
+    status.activeCmd = "camera_pan";
   } else {
     status.activeCmd = "";
     status.bound = "none";
@@ -273,6 +316,7 @@ const char* robotModeName(RobotMode mode) {
     case ROBOT_MODE_WAVING: return "waving";
     case ROBOT_MODE_GESTURE: return "gesture";
     case ROBOT_MODE_BODY: return "body";
+    case ROBOT_MODE_CAMERA_PAN: return "camera_pan";
   }
   return "unknown";
 }

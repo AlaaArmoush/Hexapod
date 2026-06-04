@@ -210,3 +210,21 @@ def test_status_waits_for_status_response(monkeypatch, capsys):
     assert exit_code == 0
     assert '>>> {"cmd":"status"}' in output
     assert '<<< {"ok":true,"cmd":"status","mode":"standing"}' in output
+
+
+def test_camera_pan_dry_run(monkeypatch, capsys):
+    install_fake_bridge(monkeypatch, [])
+
+    exit_code = test_robot_bridge_cli.main(["--dry-run", "camera_pan", "front_left"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == '{"cmd":"camera_pan","pos":"front_left"}\n'
+
+
+def test_camera_center_dry_run(monkeypatch, capsys):
+    install_fake_bridge(monkeypatch, [])
+
+    exit_code = test_robot_bridge_cli.main(["--dry-run", "camera_center"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == '{"cmd":"camera_center"}\n'

@@ -12,6 +12,8 @@ from .robot_commands import (
     FORBIDDEN_FIELDS,
     build_blink,
     build_body,
+    build_camera_center,
+    build_camera_pan,
     build_face,
     build_gait,
     build_gesture,
@@ -198,6 +200,12 @@ class SerialRobotBridge:
 
     def shake(self, count: int = 2) -> ParsedResponse:
         return self._send_and_wait(build_shake(count=count), "shake")
+
+    def camera_pan(self, pos: str = "center") -> ParsedResponse:
+        return self._send_and_wait(build_camera_pan(pos=pos), "camera_pan")
+
+    def camera_center(self) -> ParsedResponse:
+        return self._send_and_wait(build_camera_center(), "camera_center")
 
     def _validate_safe_command(self, command_dict: dict[str, Any]) -> None:
         if not isinstance(command_dict, dict):

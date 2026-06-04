@@ -7,6 +7,8 @@ from bridge.robot_commands import (
     WAVE_LEGS,
     build_blink,
     build_body,
+    build_camera_center,
+    build_camera_pan,
     build_face,
     build_gait,
     build_gesture,
@@ -176,6 +178,8 @@ def test_no_raw_servo_fields():
         build_body(),
         build_face(),
         build_blink(),
+        build_camera_center(),
+        build_camera_pan(),
         build_idle(),
         build_lean(),
         build_look(),
@@ -184,3 +188,22 @@ def test_no_raw_servo_fields():
     ]
     for command in commands:
         assert FORBIDDEN_FIELDS.isdisjoint(command)
+
+
+def test_build_camera_pan_positions():
+    assert build_camera_pan("left") == {"cmd": "camera_pan", "pos": "left"}
+    assert build_camera_pan("front_left") == {"cmd": "camera_pan", "pos": "front_left"}
+    assert build_camera_pan("slight_left") == {"cmd": "camera_pan", "pos": "front_left"}
+    assert build_camera_pan("center") == {"cmd": "camera_pan", "pos": "center"}
+    assert build_camera_pan("front_right") == {"cmd": "camera_pan", "pos": "front_right"}
+    assert build_camera_pan("slight_right") == {"cmd": "camera_pan", "pos": "front_right"}
+    assert build_camera_pan("right") == {"cmd": "camera_pan", "pos": "right"}
+
+
+def test_build_camera_pan_invalid_position():
+    with pytest.raises(InvalidParameterError):
+        build_camera_pan("up")
+
+
+def test_build_camera_center():
+    assert build_camera_center() == {"cmd": "camera_center"}

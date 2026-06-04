@@ -34,6 +34,8 @@ static RobotCommandType commandTypeFromName(const char* name) {
   if (equalsIgnoreCase(name, "nod")) return ROBOT_CMD_NOD;
   if (equalsIgnoreCase(name, "shake")) return ROBOT_CMD_SHAKE;
   if (equalsIgnoreCase(name, "idle")) return ROBOT_CMD_IDLE_STYLE;
+  if (equalsIgnoreCase(name, "camera_pan")) return ROBOT_CMD_CAMERA_PAN;
+  if (equalsIgnoreCase(name, "camera_center")) return ROBOT_CMD_CAMERA_CENTER;
   return ROBOT_CMD_NONE;
 }
 
@@ -98,6 +100,16 @@ static bool isLookDirection(const char* dir) {
 
 static bool isIdleStyle(const char* style) {
   return equalsIgnoreCase(style, "breathing") || equalsIgnoreCase(style, "sway");
+}
+
+static bool parseCameraPanPos(const char* pos, CameraPanCommand& out) {
+  if (equalsIgnoreCase(pos, "left")) out.pos = CAM_PAN_LEFT;
+  else if (equalsIgnoreCase(pos, "front_left") || equalsIgnoreCase(pos, "slight_left")) out.pos = CAM_PAN_FRONT_LEFT;
+  else if (equalsIgnoreCase(pos, "center")) out.pos = CAM_PAN_CENTER;
+  else if (equalsIgnoreCase(pos, "front_right") || equalsIgnoreCase(pos, "slight_right")) out.pos = CAM_PAN_FRONT_RIGHT;
+  else if (equalsIgnoreCase(pos, "right")) out.pos = CAM_PAN_RIGHT;
+  else return false;
+  return true;
 }
 
 static bool hasRawServoField(JsonDocument& doc) {
@@ -270,6 +282,11 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     strncpy(out.idleStyle.style, style, sizeof(out.idleStyle.style) - 1);
     out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
     out.idleStyle.invalidStyle = !isIdleStyle(style);
+  } else if (out.type == ROBOT_CMD_CAMERA_PAN || out.type == ROBOT_CMD_CAMERA_CENTER) {
+    const char* pos = out.type == ROBOT_CMD_CAMERA_CENTER ? "center" : (doc["pos"] | "center");
+    strncpy(out.cameraPan.posName, pos, sizeof(out.cameraPan.posName) - 1);
+    out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
+    out.cameraPan.invalidPos = !parseCameraPanPos(pos, out.cameraPan);
   }
 
   out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
@@ -410,6 +427,11 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     strncpy(out.idleStyle.style, style ? style : "breathing", sizeof(out.idleStyle.style) - 1);
     out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
     out.idleStyle.invalidStyle = !isIdleStyle(out.idleStyle.style);
+  } else if (out.type == ROBOT_CMD_CAMERA_PAN || out.type == ROBOT_CMD_CAMERA_CENTER) {
+    char* pos = out.type == ROBOT_CMD_CAMERA_CENTER ? (char*)"center" : strtok(nullptr, " \t\r\n");
+    strncpy(out.cameraPan.posName, pos ? pos : "center", sizeof(out.cameraPan.posName) - 1);
+    out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
+    out.cameraPan.invalidPos = !parseCameraPanPos(out.cameraPan.posName, out.cameraPan);
   }
 
   out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
