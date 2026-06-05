@@ -7,23 +7,13 @@
 #include "poses.h"
 #include "rotate_controller.h"
 #include "serial_protocol.h"
+#include "util.h"
 #include <Arduino.h>
-#include <ctype.h>
 #include <string.h>
 
 static RobotMode currentRobotMode = ROBOT_MODE_IDLE;
 static char lastError[32] = "";
 static const char* activeCameraHeadCmd = "camera_pan";
-
-static bool equalsIgnoreCase(const char* a, const char* b) {
-  if (!a || !b) return false;
-  while (*a && *b) {
-    if (tolower(*a) != tolower(*b)) return false;
-    a++;
-    b++;
-  }
-  return *a == '\0' && *b == '\0';
-}
 
 static float clampBody(float value) {
   if (value < -BODY_OFFSET_MAX) return -BODY_OFFSET_MAX;
@@ -128,21 +118,20 @@ void robotUpdate() {
 }
 
 bool robotCommandStand() {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   poseStand();
   setRobotMode(ROBOT_MODE_STANDING);
   return true;
 }
 
 bool robotCommandSit() {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   poseSitStart();
   setRobotMode(ROBOT_MODE_SITTING);
   return true;
 }
 
-bool robotCommandStop(StopMode mode) {
-  (void)mode;
+bool robotCommandStop() {
   gaitStopSmooth();
   rotateStop();
   gestureStop();
@@ -152,35 +141,35 @@ bool robotCommandStop(StopMode mode) {
 }
 
 bool robotCommandGait(GaitCommand command) {
-  if (currentRobotMode != ROBOT_MODE_GAIT) robotCommandStop(STOP_MODE_SMOOTH);
+  if (currentRobotMode != ROBOT_MODE_GAIT) robotCommandStop();
   if (!gaitStart(command)) return false;
   setRobotMode(ROBOT_MODE_GAIT);
   return true;
 }
 
 bool robotCommandRotate(RotateCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   if (!rotateStart(command)) return false;
   setRobotMode(ROBOT_MODE_ROTATING);
   return true;
 }
 
 bool robotCommandWave(WaveCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   if (!gestureStart(command)) return false;
   setRobotMode(ROBOT_MODE_WAVING);
   return true;
 }
 
 bool robotCommandBody(BodyCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   poseBodyOffset(clampBody(command.x), clampBody(command.y), clampBody(command.z));
   setRobotMode(ROBOT_MODE_BODY);
   return true;
 }
 
 bool robotCommandGesture(GestureCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   if (!gestureStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GESTURE;
   displaySetTemporaryFace(faceForGesture(command.name), 1600);
@@ -188,7 +177,7 @@ bool robotCommandGesture(GestureCommand command) {
 }
 
 bool robotCommandLean(LeanCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   command.amount_mm = constrain(command.amount_mm, 0.0f, LEAN_AMOUNT_MAX_MM);
   command.duration_ms = constrain(command.duration_ms, 1UL, LEAN_DURATION_MAX_MS);
   if (!leanStart(command)) return false;
@@ -198,7 +187,7 @@ bool robotCommandLean(LeanCommand command) {
 }
 
 bool robotCommandLook(LookCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   command.duration_ms = constrain(command.duration_ms, 1UL, LOOK_DURATION_MAX_MS);
   if (!lookStart(command)) return false;
   if (equalsIgnoreCase(command.dir, "center")) {
@@ -214,7 +203,7 @@ bool robotCommandLook(LookCommand command) {
 }
 
 bool robotCommandNod(NodShakeCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   command.count = constrain(command.count, 1, NOD_COUNT_MAX);
   if (!nodStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GESTURE;
@@ -223,7 +212,7 @@ bool robotCommandNod(NodShakeCommand command) {
 }
 
 bool robotCommandShake(NodShakeCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   command.count = constrain(command.count, 1, SHAKE_COUNT_MAX);
   if (!shakeStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GESTURE;
@@ -232,29 +221,16 @@ bool robotCommandShake(NodShakeCommand command) {
 }
 
 bool robotCommandIdleStyle(IdleStyleCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
+  robotCommandStop();
   if (!idleStyleStart(command)) return false;
   currentRobotMode = ROBOT_MODE_GESTURE;
   displaySetFace(FACE_IDLE);
   return true;
 }
 
-bool robotCommandCameraPan(CameraPanCommand command) {
-  robotCommandStop(STOP_MODE_SMOOTH);
-  activeCameraHeadCmd = "camera_pan";
-  if (!cameraHeadStart(command.pos)) return false;
-  currentRobotMode = ROBOT_MODE_CAMERA_PAN;
-  displaySetTemporaryFace(FACE_LISTENING, 0);
-  return true;
-}
-
-bool robotCommandCameraCenter() {
-  robotCommandStop(STOP_MODE_SMOOTH);
-  activeCameraHeadCmd = "camera_center";
-  CameraPanCommand command;
-  command.pos = CAM_PAN_CENTER;
-  strncpy(command.posName, "center", sizeof(command.posName) - 1);
-  command.posName[sizeof(command.posName) - 1] = '\0';
+bool robotCommandCameraPan(CameraPanCommand command, const char* cmdName) {
+  robotCommandStop();
+  activeCameraHeadCmd = cmdName ? cmdName : "camera_pan";
   if (!cameraHeadStart(command.pos)) return false;
   currentRobotMode = ROBOT_MODE_CAMERA_PAN;
   displaySetTemporaryFace(FACE_LISTENING, 0);

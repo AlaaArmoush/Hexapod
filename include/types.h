@@ -43,8 +43,7 @@ enum RobotCommandType {
   ROBOT_CMD_NOD,
   ROBOT_CMD_SHAKE,
   ROBOT_CMD_IDLE_STYLE,
-  ROBOT_CMD_CAMERA_PAN,
-  ROBOT_CMD_CAMERA_CENTER
+  ROBOT_CMD_CAMERA_PAN
 };
 
 enum CameraPanPos {
@@ -53,11 +52,6 @@ enum CameraPanPos {
   CAM_PAN_CENTER,
   CAM_PAN_FRONT_RIGHT,
   CAM_PAN_RIGHT
-};
-
-enum StopMode {
-  STOP_MODE_SMOOTH,
-  STOP_MODE_EMERGENCY
 };
 
 enum GaitDir {
@@ -169,7 +163,6 @@ struct RobotCommand {
   char cmdName[20] = "";
   bool rawServoControl = false;
   bool invalidNumeric = false;
-  StopMode stopMode = STOP_MODE_SMOOTH;
   GaitCommand gait;
   RotateCommand rotate;
   WaveCommand wave;

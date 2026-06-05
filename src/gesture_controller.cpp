@@ -4,8 +4,8 @@
 #include "interpolation.h"
 #include "poses.h"
 #include "servo_driver.h"
+#include "util.h"
 #include <Arduino.h>
-#include <ctype.h>
 #include <string.h>
 
 enum GestureKind {
@@ -36,16 +36,6 @@ static LeanCommand leanCommand;
 static LookCommand lookCommand;
 static NodShakeCommand nodShakeCommand;
 static IdleStyleCommand idleStyleCommand;
-
-static bool equalsIgnoreCase(const char* a, const char* b) {
-  if (!a || !b) return false;
-  while (*a && *b) {
-    if (tolower(*a) != tolower(*b)) return false;
-    a++;
-    b++;
-  }
-  return *a == '\0' && *b == '\0';
-}
 
 static void allButWaveLeg(float x, float y, float z, float waveX, float waveY, float waveZ) {
   for (int i = 0; i < 6; i++) {

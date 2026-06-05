@@ -8,32 +8,6 @@
 #include "servo_driver.h"
 #include <Arduino.h>
 
-static const char* commandName(RobotCommandType type) {
-  switch (type) {
-    case ROBOT_CMD_PING: return "ping";
-    case ROBOT_CMD_STATUS: return "status";
-    case ROBOT_CMD_STAND: return "stand";
-    case ROBOT_CMD_SIT: return "sit";
-    case ROBOT_CMD_STOP: return "stop";
-    case ROBOT_CMD_GAIT: return "gait";
-    case ROBOT_CMD_ROTATE: return "rotate";
-    case ROBOT_CMD_WAVE: return "wave";
-    case ROBOT_CMD_BODY: return "body";
-    case ROBOT_CMD_GESTURE: return "gesture";
-    case ROBOT_CMD_FACE: return "face";
-    case ROBOT_CMD_BLINK: return "blink";
-    case ROBOT_CMD_LEAN: return "lean";
-    case ROBOT_CMD_LOOK: return "look";
-    case ROBOT_CMD_NOD: return "nod";
-    case ROBOT_CMD_SHAKE: return "shake";
-    case ROBOT_CMD_IDLE_STYLE: return "idle";
-    case ROBOT_CMD_CAMERA_PAN: return "camera_pan";
-    case ROBOT_CMD_CAMERA_CENTER: return "camera_center";
-    case ROBOT_CMD_NONE: return "unknown";
-  }
-  return "unknown";
-}
-
 static void sendStatus() {
   RobotStatus status = robotGetStatus();
   Serial.print("{\"ok\":true,\"cmd\":\"status\",\"mode\":\"");
@@ -239,7 +213,7 @@ void routeCommand(const RobotCommand& command) {
       ok = robotCommandSit();
       break;
     case ROBOT_CMD_STOP:
-      ok = robotCommandStop(command.stopMode);
+      ok = robotCommandStop();
       break;
     case ROBOT_CMD_GAIT:
       if (command.gait.ambiguousBound) {
@@ -335,20 +309,14 @@ void routeCommand(const RobotCommand& command) {
         sendInvalidCameraPanPosition(command.cameraPan.posName);
         return;
       }
-      ok = robotCommandCameraPan(command.cameraPan);
+      ok = robotCommandCameraPan(command.cameraPan, command.cmdName);
       if (ok) {
         robotSetLastError("");
-        Serial.print("{\"ok\":true,\"cmd\":\"camera_pan\",\"pos\":\"");
+        Serial.print("{\"ok\":true,\"cmd\":\"");
+        Serial.print(command.cmdName);
+        Serial.print("\",\"pos\":\"");
         Serial.print(cameraPanPosName(command.cameraPan.pos));
         Serial.println("\"}");
-        return;
-      }
-      break;
-    case ROBOT_CMD_CAMERA_CENTER:
-      ok = robotCommandCameraCenter();
-      if (ok) {
-        robotSetLastError("");
-        Serial.println("{\"ok\":true,\"cmd\":\"camera_center\",\"pos\":\"center\"}");
         return;
       }
       break;
@@ -359,7 +327,7 @@ void routeCommand(const RobotCommand& command) {
 
   if (ok) {
     robotSetLastError("");
-    serialSendOk(commandName(command.type));
+    serialSendOk(command.cmdName);
   } else {
     sendError("invalid_numeric_parameter");
   }
