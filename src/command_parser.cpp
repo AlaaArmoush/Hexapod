@@ -1,20 +1,10 @@
 #include "command_parser.h"
 #include "config.h"
+#include "util.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-
-static bool equalsIgnoreCase(const char* a, const char* b) {
-  if (!a || !b) return false;
-  while (*a && *b) {
-    if (tolower(*a) != tolower(*b)) return false;
-    a++;
-    b++;
-  }
-  return *a == '\0' && *b == '\0';
-}
 
 static RobotCommandType commandTypeFromName(const char* name) {
   if (equalsIgnoreCase(name, "ping")) return ROBOT_CMD_PING;
@@ -35,7 +25,7 @@ static RobotCommandType commandTypeFromName(const char* name) {
   if (equalsIgnoreCase(name, "shake")) return ROBOT_CMD_SHAKE;
   if (equalsIgnoreCase(name, "idle")) return ROBOT_CMD_IDLE_STYLE;
   if (equalsIgnoreCase(name, "camera_pan")) return ROBOT_CMD_CAMERA_PAN;
-  if (equalsIgnoreCase(name, "camera_center")) return ROBOT_CMD_CAMERA_CENTER;
+  if (equalsIgnoreCase(name, "camera_center")) return ROBOT_CMD_CAMERA_PAN;
   return ROBOT_CMD_NONE;
 }
 
@@ -178,10 +168,7 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
   }
   out.rawServoControl = hasRawServoField(doc);
 
-  if (out.type == ROBOT_CMD_STOP) {
-    const char* mode = doc["mode"] | "smooth";
-    out.stopMode = equalsIgnoreCase(mode, "emergency") ? STOP_MODE_EMERGENCY : STOP_MODE_SMOOTH;
-  } else if (out.type == ROBOT_CMD_GAIT) {
+  if (out.type == ROBOT_CMD_GAIT) {
     const char* dir = doc["dir"] | "forward";
     strncpy(out.gait.dirName, dir, sizeof(out.gait.dirName) - 1);
     out.gait.dirName[sizeof(out.gait.dirName) - 1] = '\0';
@@ -282,8 +269,8 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     strncpy(out.idleStyle.style, style, sizeof(out.idleStyle.style) - 1);
     out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
     out.idleStyle.invalidStyle = !isIdleStyle(style);
-  } else if (out.type == ROBOT_CMD_CAMERA_PAN || out.type == ROBOT_CMD_CAMERA_CENTER) {
-    const char* pos = out.type == ROBOT_CMD_CAMERA_CENTER ? "center" : (doc["pos"] | "center");
+  } else if (out.type == ROBOT_CMD_CAMERA_PAN) {
+    const char* pos = doc["pos"] | "center";
     strncpy(out.cameraPan.posName, pos, sizeof(out.cameraPan.posName) - 1);
     out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
     out.cameraPan.invalidPos = !parseCameraPanPos(pos, out.cameraPan);
@@ -427,8 +414,8 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     strncpy(out.idleStyle.style, style ? style : "breathing", sizeof(out.idleStyle.style) - 1);
     out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
     out.idleStyle.invalidStyle = !isIdleStyle(out.idleStyle.style);
-  } else if (out.type == ROBOT_CMD_CAMERA_PAN || out.type == ROBOT_CMD_CAMERA_CENTER) {
-    char* pos = out.type == ROBOT_CMD_CAMERA_CENTER ? (char*)"center" : strtok(nullptr, " \t\r\n");
+  } else if (out.type == ROBOT_CMD_CAMERA_PAN) {
+    char* pos = strtok(nullptr, " \t\r\n");
     strncpy(out.cameraPan.posName, pos ? pos : "center", sizeof(out.cameraPan.posName) - 1);
     out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
     out.cameraPan.invalidPos = !parseCameraPanPos(out.cameraPan.posName, out.cameraPan);
