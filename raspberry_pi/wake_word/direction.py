@@ -7,10 +7,21 @@ class DirectionEstimator:
     def estimate(self, audio_chunk: np.ndarray) -> str:
         raise NotImplementedError
 
+    def reset(self) -> None:
+        raise NotImplementedError
+
 
 class RealDirectionEstimator(DirectionEstimator):
     """
     Uses per-channel RMS energy to pick a horizontal direction.
+
+    Physical layout (tentative — verify on hardware):
+        FRONT
+        CH1 (3V3) ●    ● CH3 (3V3)
+        CH0 (GND) ●    ● CH2 (GND)
+        BACK
+
+    CH0/CH1 are on the left side (pin38); CH2/CH3 on the right (pin15).
     """
 
     def __init__(self, min_advantage_db: float = 3.0, history: int = 5) -> None:
@@ -48,28 +59,3 @@ class RealDirectionEstimator(DirectionEstimator):
     def reset(self) -> None:
         self._energy_left.clear()
         self._energy_right.clear()
-
-
-# [MOCK - will be deleted]
-class MockDirectionEstimator(DirectionEstimator):
-    """Cycles through directions so the full pipeline can be tested on a laptop."""
-
-    _CYCLE = ["left", "center", "right", "center"]
-
-    def __init__(self) -> None:
-        self._idx = 0
-
-    def estimate(self, audio_chunk: np.ndarray) -> str:
-        direction = self._CYCLE[self._idx % len(self._CYCLE)]
-        self._idx += 1
-        return direction
-
-    def reset(self) -> None:
-        pass  # cycle index intentionally preserved between detections
-
-
-# [MOCK]
-def make_direction_estimator(use_mock: bool = False) -> DirectionEstimator:
-    if use_mock:
-        return MockDirectionEstimator()
-    return RealDirectionEstimator()

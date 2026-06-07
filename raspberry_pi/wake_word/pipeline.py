@@ -1,15 +1,13 @@
 """
-Wake Word Pipeline — Phase 1 (laptop mock).
+Wake Word Pipeline — Phase 2 (Pi hardware).
 
 Usage:
-    python -m raspberry_pi.wake_word.pipeline --mock
-    python -m raspberry_pi.wake_word.pipeline          # real direction (Pi only)
+    python -m raspberry_pi.wake_word.pipeline
 
 State machine: IDLE → LISTENING → WAKEWORD_DETECTED → PANNING → IDLE
 """
 from __future__ import annotations
 
-import argparse
 import sys
 import time
 from enum import Enum, auto
@@ -18,14 +16,14 @@ from pathlib import Path
 import numpy as np
 
 from .detector import WakeWordDetector
-from .direction import DirectionEstimator, make_direction_estimator
+from .direction import RealDirectionEstimator
 from .servo_response import respond_to_direction
 
 WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 WAKEWORD_THRESHOLD = 0.3
-DIRECTION_HISTORY = 5
-AUDIO_DEVICE = None       # None = system default; set to int on Pi
-COOLDOWN_SECS = 2.0       # suppress re-triggers while the utterance is still ringing
+AUDIO_DEVICE = 1          # hexapod combined overlay capture (hw:0,1)
+SERIAL_PORT = "/dev/ttyUSB0"
+COOLDOWN_SECS = 2.0
 
 
 class _State(Enum):
@@ -36,11 +34,12 @@ class _State(Enum):
 
 
 class WakeWordPipeline:
-    def __init__(self, use_mock: bool = False, bridge: object | None = None) -> None:
-        self._use_mock = use_mock
-        self._bridge = bridge
+    def __init__(self) -> None:
+        from bridge.serial_robot_bridge import SerialRobotBridge
+
+        self._bridge = SerialRobotBridge(port=SERIAL_PORT)
         self._state = _State.IDLE
-        self._direction_est: DirectionEstimator = make_direction_estimator(use_mock=use_mock)
+        self._direction_est = RealDirectionEstimator()
         self._pending_direction: str = "center"
         self._detector: WakeWordDetector | None = None
         self._last_detection_time: float = 0.0
@@ -69,13 +68,17 @@ class WakeWordPipeline:
         pass
 
     def start(self) -> None:
+        from raspberry_pi.audio.scripts.audio_mode import listen as audio_listen
+
         if not WAKEWORD_MODEL_PATH.exists():
             print(f"[pipeline] ERROR: model not found at {WAKEWORD_MODEL_PATH}", file=sys.stderr)
             sys.exit(1)
 
-        print(f"[pipeline] starting (mock={self._use_mock})", file=sys.stderr)
-        print(f"[pipeline] model: {WAKEWORD_MODEL_PATH}", file=sys.stderr)
-        print(f"[pipeline] threshold: {WAKEWORD_THRESHOLD}", file=sys.stderr)
+        print(f"[pipeline] connecting to ESP32 on {SERIAL_PORT}", file=sys.stderr)
+        self._bridge.connect()
+
+        print("[pipeline] setting audio mode: listen", file=sys.stderr)
+        audio_listen()
 
         self._detector = WakeWordDetector(
             model_path=WAKEWORD_MODEL_PATH,
@@ -97,23 +100,18 @@ class WakeWordPipeline:
             self.stop()
 
     def stop(self) -> None:
+        from raspberry_pi.audio.scripts.audio_mode import off as audio_off
+
         if self._detector is not None:
             self._detector.stop()
             self._detector = None
+        audio_off()
+        self._bridge.close()
         self._state = _State.IDLE
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Wake word → camera pan pipeline")
-    parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="[MOCK — DELETE BEFORE PI] Use mock direction estimator (cycles left/center/right)",
-    )
-    args = parser.parse_args()
-
-    pipeline = WakeWordPipeline(use_mock=args.mock)
-    pipeline.start()
+    WakeWordPipeline().start()
 
 
 if __name__ == "__main__":
