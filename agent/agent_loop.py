@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any, Callable
 
 from .agent_errors import AgentPlanError
 from .agent_plan import parse_agent_plan
 from .agent_validator import validate_agent_plan
+from .fast_robot_intent import build_fast_robot_plan
 from .prompts import RUNTIME_SYSTEM_PROMPT
 from .tool_executor import execute_tools
 
@@ -39,6 +41,7 @@ class AgentLoop:
         max_tokens: int | None = 80,
         summarizer_max_tokens: int | None = 80,
         json_response_format: bool = False,
+        fast_robot_shortcuts: bool = True,
     ):
         self.llama_client = llama_client
         self.tool_executor = tool_executor
@@ -51,22 +54,47 @@ class AgentLoop:
         self.max_tokens = max_tokens
         self.summarizer_max_tokens = summarizer_max_tokens
         self.json_response_format = json_response_format
+        self.fast_robot_shortcuts = fast_robot_shortcuts
 
     def run_once(self, user_input: str) -> dict[str, Any]:
         """Run one user turn through the model, parser, validator, and tools."""
 
+        started_at = time.perf_counter()
+        timings: dict[str, Any] = {}
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_input},
         ]
 
         try:
+            if self.fast_robot_shortcuts:
+                fast_plan = build_fast_robot_plan(user_input)
+                if fast_plan is not None:
+                    raw_output = json.dumps(fast_plan, separators=(",", ":"))
+                    timings["plan_source"] = "fast_robot"
+                    if self.verbose:
+                        print("fast_robot_shortcut: true")
+                        print("raw_model_output:")
+                        print(raw_output)
+                    return self._run_plan(
+                        raw_output=raw_output,
+                        plan=fast_plan,
+                        user_input=user_input,
+                        timings=timings,
+                        started_at=started_at,
+                    )
+
+            model_started_at = time.perf_counter()
             raw_output = self._chat(messages)
+            timings["model_s"] = time.perf_counter() - model_started_at
+            timings["plan_source"] = "model"
             if self.verbose:
                 print("raw_model_output:")
                 print(raw_output)
 
+            parse_started_at = time.perf_counter()
             plan = parse_agent_plan(raw_output)
+            timings["parse_s"] = time.perf_counter() - parse_started_at
         except AgentPlanError as exc:
             return {
                 "ok": False,
@@ -75,6 +103,7 @@ class AgentLoop:
                 "error": str(exc),
                 "tool_results": [],
                 "raw_model_output": raw_output if "raw_output" in locals() else "",
+                "timings": _finish_timings(timings, started_at),
             }
         except Exception as exc:
             return {
@@ -84,18 +113,31 @@ class AgentLoop:
                 "error": str(exc),
                 "tool_results": [],
                 "raw_model_output": "",
+                "timings": _finish_timings(timings, started_at),
             }
 
-        return self._run_plan(raw_output=raw_output, plan=plan, user_input=user_input)
+        return self._run_plan(
+            raw_output=raw_output,
+            plan=plan,
+            user_input=user_input,
+            timings=timings,
+            started_at=started_at,
+        )
 
     def _run_plan(
         self,
         plan: dict[str, Any],
         raw_output: str,
         user_input: str = "",
+        timings: dict[str, Any] | None = None,
+        started_at: float | None = None,
     ) -> dict[str, Any]:
+        timings = timings if timings is not None else {}
+        started_at = started_at if started_at is not None else time.perf_counter()
         try:
+            validate_started_at = time.perf_counter()
             validated = validate_agent_plan(plan)
+            timings["validate_s"] = time.perf_counter() - validate_started_at
         except AgentPlanError as exc:
             return {
                 "ok": False,
@@ -104,14 +146,19 @@ class AgentLoop:
                 "error": str(exc),
                 "tool_results": [],
                 "raw_model_output": raw_output,
+                "timings": _finish_timings(timings, started_at),
             }
 
         tool_results: list[dict[str, Any]] = []
         if validated.kind == "tool_request":
             if self.enable_tools:
+                tools_started_at = time.perf_counter()
                 tool_results = self.tool_executor(validated.tools, user_input=user_input)
+                timings["tools_s"] = time.perf_counter() - tools_started_at
                 if self.summarize_tool_results:
+                    summarize_started_at = time.perf_counter()
                     tool_results = self._summarize_tool_results(tool_results)
+                    timings["summarize_s"] = time.perf_counter() - summarize_started_at
             else:
                 tool_results = [
                     {
@@ -133,6 +180,7 @@ class AgentLoop:
             "face": validated.face,
             "tool_results": tool_results,
             "raw_model_output": raw_output,
+            "timings": _finish_timings(timings, started_at),
         }
 
     def _chat(
@@ -194,3 +242,9 @@ class AgentLoop:
             summarized.append(updated)
 
         return summarized
+
+
+def _finish_timings(timings: dict[str, Any], started_at: float) -> dict[str, Any]:
+    finished = dict(timings)
+    finished["total_s"] = time.perf_counter() - started_at
+    return finished

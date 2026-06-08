@@ -69,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip movement confirmation in real robot mode.",
     )
     parser.add_argument(
+        "--no-fast-robot",
+        action="store_true",
+        help="Disable deterministic shortcuts for simple robot movement commands.",
+    )
+    parser.add_argument(
         "--robot-sync",
         choices=["ping", "none"],
         default="ping",
@@ -184,6 +189,7 @@ def _build_loop(args: argparse.Namespace):
         temperature=args.temperature,
         max_tokens=args.max_tokens,
         json_response_format=args.json_response_format,
+        fast_robot_shortcuts=not args.no_fast_robot,
     ), client, robot_executor
 
 

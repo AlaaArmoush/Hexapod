@@ -108,6 +108,53 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(calls, [[{"name": "get_time", "args": {}}]])
         self.assertEqual(result["tool_results"][0]["spoken_text"], "It is 4:20 PM.")
 
+    def test_simple_robot_command_uses_fast_path_without_model_call(self):
+        client = FakeLlamaClient(RuntimeError("model should not be called"))
+        calls = []
+
+        def fake_tool_executor(tools, **_kwargs):
+            calls.append(tools)
+            return [
+                {
+                    "ok": True,
+                    "name": "robot_command",
+                    "spoken_text": "Robot command dry-run validated.",
+                    "data": {"serial_json": '{"cmd":"gait","dir":"backward","speed":0.03,"steps":1}'},
+                    "display_face": "system",
+                    "error": None,
+                }
+            ]
+
+        loop = AgentLoop(llama_client=client, tool_executor=fake_tool_executor)
+
+        result = loop.run_once("step back")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(client.calls, [])
+        self.assertEqual(result["timings"]["plan_source"], "fast_robot")
+        self.assertEqual(
+            calls,
+            [[{"name": "robot_command", "args": {"cmd": "gait", "dir": "backward", "speed": 0.03, "steps": 1}}]],
+        )
+
+    def test_fast_robot_path_can_be_disabled(self):
+        client = FakeLlamaClient(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "final_response",
+                    "response": {"speak": "Using model.", "emotion": "neutral", "face": "idle"},
+                }
+            )
+        )
+        loop = AgentLoop(llama_client=client, fast_robot_shortcuts=False)
+
+        result = loop.run_once("step back")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["speak"], "Using model.")
+        self.assertEqual(len(client.calls), 1)
+
     def test_summarize_tool_results_rewrites_successful_tool_text(self):
         client = FakeLlamaClient(
             [
