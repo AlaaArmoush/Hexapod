@@ -200,6 +200,11 @@ def test_build_camera_pan_positions():
     assert build_camera_pan("right") == {"cmd": "camera_pan", "pos": "right"}
 
 
+def test_build_camera_pan_offset():
+    assert build_camera_pan("center", offset=7) == {"cmd": "camera_pan", "pos": "center", "offset": 7}
+    assert build_camera_pan("center", offset=-4) == {"cmd": "camera_pan", "pos": "center", "offset": -4}
+
+
 def test_build_camera_pan_invalid_position():
     with pytest.raises(InvalidParameterError):
         build_camera_pan("up")
@@ -207,3 +212,4 @@ def test_build_camera_pan_invalid_position():
 
 def test_build_camera_center():
     assert build_camera_center() == {"cmd": "camera_center"}
+    assert build_camera_center(offset=5) == {"cmd": "camera_center", "offset": 5}

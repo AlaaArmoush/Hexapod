@@ -41,7 +41,16 @@ class SerialRobotBridge:
 
     def connect(self) -> None:
         try:
-            self._serial = serial.Serial(self._port, self._baudrate, timeout=self._timeout)
+            # Use a short per-byte timeout so read_line() can poll its own wall-clock deadline.
+            ser = serial.Serial()
+            ser.port = self._port
+            ser.baudrate = self._baudrate
+            ser.timeout = 0.1
+            ser.dtr = False
+            ser.rts = False
+            ser.open()
+            ser.reset_input_buffer()
+            self._serial = ser
         except serial.SerialException as exc:
             raise ConnectionError(f"failed to open serial port {self._port!r}: {exc}") from exc
 
@@ -69,19 +78,27 @@ class SerialRobotBridge:
         except serial.SerialException as exc:
             raise ConnectionError(f"failed to write command to serial port: {exc}") from exc
 
-    def read_line(self) -> str | None:
+    def read_line(self, timeout: float | None = None) -> str | None:
         if not self.is_connected():
             raise NotConnectedError("serial port is not connected")
+        line = bytearray()
+        read_timeout = self._timeout if timeout is None else timeout
+        deadline = time.monotonic() + read_timeout
         try:
-            raw_line = self._serial.readline()
+            while time.monotonic() < deadline:
+                b = self._serial.read(1)
+                if b:
+                    line.extend(b)
+                    if b == b"\n":
+                        break
         except serial.SerialException as exc:
             raise ConnectionError(f"failed to read from serial port: {exc}") from exc
-        if raw_line == b"":
+        if not line:
             return None
-        return raw_line.decode("utf-8", errors="replace").strip()
+        return line.decode("utf-8", errors="replace").strip()
 
-    def read_json_line(self) -> ParsedResponse | None:
-        raw_line = self.read_line()
+    def read_json_line(self, timeout: float | None = None) -> ParsedResponse | None:
+        raw_line = self.read_line(timeout=timeout)
         if raw_line is None:
             return None
         return parse_line(raw_line)
@@ -89,7 +106,8 @@ class SerialRobotBridge:
     def wait_for_ready(self, timeout: float = 5.0) -> ParsedResponse:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            response = self.read_json_line()
+            remaining = deadline - time.monotonic()
+            response = self.read_json_line(timeout=min(self._timeout, max(0.0, remaining)))
             if response is None or response["json"] is None:
                 continue
             if response["event"] == "ready":
@@ -99,7 +117,8 @@ class SerialRobotBridge:
     def wait_for_ok(self, cmd: str | None = None, timeout: float = 2.0) -> ParsedResponse:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            response = self.read_json_line()
+            remaining = deadline - time.monotonic()
+            response = self.read_json_line(timeout=min(self._timeout, max(0.0, remaining)))
             if response is None or response["json"] is None:
                 continue
 
@@ -112,10 +131,28 @@ class SerialRobotBridge:
             raise TimeoutError(f"timed out waiting for ok response after {timeout:.2f}s")
         raise TimeoutError(f"timed out waiting for ok response for {cmd!r} after {timeout:.2f}s")
 
+    def sync(self, timeout: float = 6.0, attempt_timeout: float = 0.1) -> ParsedResponse:
+        deadline = time.monotonic() + timeout
+        last_error: FirmwareError | None = None
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            try:
+                self.send_command(build_ping())
+                return self.wait_for_ok("ping", timeout=min(attempt_timeout, max(0.05, remaining)))
+            except TimeoutError:
+                continue
+            except FirmwareError as exc:
+                last_error = exc
+
+        if last_error is not None:
+            raise last_error
+        raise TimeoutError(f"timed out waiting for ping sync after {timeout:.2f}s")
+
     def wait_for_status(self, timeout: float = 2.0) -> ParsedResponse:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            response = self.read_json_line()
+            remaining = deadline - time.monotonic()
+            response = self.read_json_line(timeout=min(self._timeout, max(0.0, remaining)))
             if response is None or response["json"] is None:
                 continue
             if response["cmd"] == "status":
@@ -201,11 +238,11 @@ class SerialRobotBridge:
     def shake(self, count: int = 2) -> ParsedResponse:
         return self._send_and_wait(build_shake(count=count), "shake")
 
-    def camera_pan(self, pos: str = "center") -> ParsedResponse:
-        return self._send_and_wait(build_camera_pan(pos=pos), "camera_pan")
+    def camera_pan(self, pos: str = "center", offset: int = 0) -> ParsedResponse:
+        return self._send_and_wait(build_camera_pan(pos=pos, offset=offset), "camera_pan")
 
-    def camera_center(self) -> ParsedResponse:
-        return self._send_and_wait(build_camera_center(), "camera_center")
+    def camera_center(self, offset: int = 0) -> ParsedResponse:
+        return self._send_and_wait(build_camera_center(offset=offset), "camera_center")
 
     def _validate_safe_command(self, command_dict: dict[str, Any]) -> None:
         if not isinstance(command_dict, dict):
@@ -215,9 +252,9 @@ class SerialRobotBridge:
         if forbidden_path is not None:
             raise InvalidParameterError(f"command contains forbidden raw-control field: {forbidden_path}")
 
-    def _send_and_wait(self, command: dict[str, Any], cmd: str) -> ParsedResponse:
+    def _send_and_wait(self, command: dict[str, Any], cmd: str, timeout: float | None = None) -> ParsedResponse:
         self.send_command(command)
-        return self.wait_for_ok(cmd)
+        return self.wait_for_ok(cmd, timeout=timeout if timeout is not None else 2.0)
 
     def _find_forbidden_field(self, value: Any, path: str = "") -> str | None:
         if isinstance(value, dict):

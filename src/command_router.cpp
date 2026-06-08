@@ -94,25 +94,7 @@ static void sendI2cScan() {
 }
 
 static void sendPing() {
-  bool leftFound = pcaBoardPresent(0);
-  bool rightFound = pcaBoardPresent(1);
-  Serial.print("{\"ok\":true,\"cmd\":\"ping\",\"pca\":{\"left\":{\"address\":\"");
-  printHexAddress(pcaAddressForBoard(0));
-  Serial.print("\",\"found\":");
-  Serial.print(leftFound ? "true" : "false");
-  Serial.print(",\"error\":");
-  Serial.print(pcaBoardI2cError(0));
-  Serial.print("},\"right\":{\"address\":\"");
-  printHexAddress(pcaAddressForBoard(1));
-  Serial.print("\",\"found\":");
-  Serial.print(rightFound ? "true" : "false");
-  Serial.print(",\"error\":");
-  Serial.print(pcaBoardI2cError(1));
-  Serial.print("}},");
-  sendI2cLineState();
-  Serial.print(",");
-  sendI2cScan();
-  Serial.println("}");
+  Serial.println("{\"ok\":true,\"cmd\":\"ping\"}");
 }
 
 static void sendError(const char* error) {
@@ -316,7 +298,9 @@ void routeCommand(const RobotCommand& command) {
         Serial.print(command.cmdName);
         Serial.print("\",\"pos\":\"");
         Serial.print(cameraPanPosName(command.cameraPan.pos));
-        Serial.println("\"}");
+        Serial.print("\",\"offset_deg\":");
+        Serial.print(command.cameraPan.offsetDeg);
+        Serial.println("}");
         return;
       }
       break;

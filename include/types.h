@@ -155,7 +155,9 @@ struct IdleStyleCommand {
 struct CameraPanCommand {
   CameraPanPos pos = CAM_PAN_CENTER;
   char posName[16] = "center";
+  int offsetDeg = 0; // TEMP: command-time camera trim for servo calibration.
   bool invalidPos = false;
+  bool invalidNumeric = false;
 };
 
 struct RobotCommand {

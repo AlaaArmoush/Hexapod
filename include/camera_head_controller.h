@@ -3,7 +3,7 @@
 #include "types.h"
 
 void cameraHeadInit();
-bool cameraHeadStart(CameraPanPos pos);
+bool cameraHeadStart(CameraPanPos pos, int offsetDeg = 0);
 void cameraHeadUpdate();
 void cameraHeadStop();
 bool cameraHeadIsRunning();

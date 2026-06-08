@@ -50,9 +50,9 @@ void cameraHeadInit() {
   servoWriteRaw(CAMERA_SERVO_BOARD, CAMERA_SERVO_CHANNEL, currentDeg + CAMERA_SERVO_TRIM);
 }
 
-bool cameraHeadStart(CameraPanPos pos) {
+bool cameraHeadStart(CameraPanPos pos, int offsetDeg) {
   targetPos = pos;
-  targetDeg = clampCameraDeg(degreeForPos(pos));
+  targetDeg = clampCameraDeg(degreeForPos(pos) + offsetDeg);
   done = false;
   if (currentDeg == targetDeg) {
     currentPos = targetPos;

@@ -221,6 +221,15 @@ def test_camera_pan_dry_run(monkeypatch, capsys):
     assert capsys.readouterr().out == '{"cmd":"camera_pan","pos":"front_left"}\n'
 
 
+def test_camera_pan_offset_dry_run(monkeypatch, capsys):
+    install_fake_bridge(monkeypatch, [])
+
+    exit_code = test_robot_bridge_cli.main(["--dry-run", "camera_pan", "center", "--offset", "6"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == '{"cmd":"camera_pan","pos":"center","offset":6}\n'
+
+
 def test_camera_center_dry_run(monkeypatch, capsys):
     install_fake_bridge(monkeypatch, [])
 
@@ -228,3 +237,12 @@ def test_camera_center_dry_run(monkeypatch, capsys):
 
     assert exit_code == 0
     assert capsys.readouterr().out == '{"cmd":"camera_center"}\n'
+
+
+def test_camera_center_offset_dry_run(monkeypatch, capsys):
+    install_fake_bridge(monkeypatch, [])
+
+    exit_code = test_robot_bridge_cli.main(["--dry-run", "camera_center", "--offset", "-3"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == '{"cmd":"camera_center","offset":-3}\n'

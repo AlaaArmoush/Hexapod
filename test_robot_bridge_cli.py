@@ -161,10 +161,12 @@ def _add_command_parsers(subparsers: argparse._SubParsersAction) -> dict[str, Co
     parser = add("shake", lambda args: build_shake(count=args.count))
     parser.add_argument("--count", type=int, default=2)
 
-    parser = add("camera_pan", lambda args: build_camera_pan(pos=args.pos))
+    parser = add("camera_pan", lambda args: build_camera_pan(pos=args.pos, offset=args.offset))
     parser.add_argument("pos", choices=["left", "front_left", "slight_left", "center", "front_right", "slight_right", "right"])
+    parser.add_argument("--offset", type=int, default=0)
 
-    add("camera_center", lambda args: build_camera_center())
+    parser = add("camera_center", lambda args: build_camera_center(offset=args.offset))
+    parser.add_argument("--offset", type=int, default=0)
 
     return builders
 
