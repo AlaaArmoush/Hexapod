@@ -21,7 +21,11 @@ scripts/run_agent_cli.py
   |
   v
 AgentLoop
-  - sends system prompt + user text to local Gemma
+  - checks fast_robot_intent.py for unambiguous single-word commands
+    (stand, sit, stop, wave, ping, status → skip LLM entirely)
+  - otherwise calls build_prompt() to select the smallest correct
+    prompt section (robot / camera / general tools / full fallback)
+  - sends prompt + user text to local Gemma
   - receives raw model text
   |
   v
@@ -65,6 +69,7 @@ Normal default behavior is dry-run validation only.
 | Agent loop | `agent/agent_loop.py` |
 | Local model client | `agent/llama_client.py` |
 | Prompt contract | `agent/prompts.py`, `docs/AGENT_OUTPUT_CONTRACT.md` |
+| Fast intent shortcuts | `agent/fast_robot_intent.py` |
 | Model JSON parser | `agent/agent_plan.py` |
 | Plan validator | `agent/agent_validator.py` |
 | Tool executor | `agent/tool_executor.py` |
@@ -148,8 +153,9 @@ set_reminder
 robot_command
 ```
 
-Some tools are registered as future capabilities but intentionally return
-`not_implemented` for now, such as camera and microphone tools.
+Camera tools (`capture_image`, `camera_status`, `depth_probe`, `check_clearance`,
+`observe_scene`, `detect_person`, `detect_object`) are fully implemented via the
+OAK-D DepthAI pipeline. Microphone tools are not yet implemented.
 
 ## Robot Commands
 
