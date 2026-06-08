@@ -103,7 +103,7 @@ class SerialRobotBridge:
             return None
         return parse_line(raw_line)
 
-    def wait_for_ready(self, timeout: float = 5.0) -> ParsedResponse:
+    def wait_for_ready(self, timeout: float = 10.0) -> ParsedResponse:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
@@ -114,7 +114,7 @@ class SerialRobotBridge:
                 return response
         raise TimeoutError(f"timed out waiting for ready event after {timeout:.2f}s")
 
-    def wait_for_ok(self, cmd: str | None = None, timeout: float = 2.0) -> ParsedResponse:
+    def wait_for_ok(self, cmd: str | None = None, timeout: float = 5.0) -> ParsedResponse:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()

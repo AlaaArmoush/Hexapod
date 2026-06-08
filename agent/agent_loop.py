@@ -42,6 +42,7 @@ class AgentLoop:
         summarizer_max_tokens: int | None = 80,
         json_response_format: bool = False,
         fast_robot_shortcuts: bool = True,
+        face_executor: Callable[[str], None] | None = None,
     ):
         self.llama_client = llama_client
         self.tool_executor = tool_executor
@@ -56,6 +57,7 @@ class AgentLoop:
         self.summarizer_max_tokens = summarizer_max_tokens
         self.json_response_format = json_response_format
         self.fast_robot_shortcuts = fast_robot_shortcuts
+        self.face_executor = face_executor
 
     def run_once(self, user_input: str) -> dict[str, Any]:
         """Run one user turn through the model, parser, validator, and tools."""
@@ -174,6 +176,17 @@ class AgentLoop:
                     }
                     for tool in validated.tools
                 ]
+
+        if self.face_executor is not None and validated.face and validated.face != "idle":
+            robot_command_sent = any(
+                r.get("name") == "robot_command" and r.get("ok")
+                for r in tool_results
+            )
+            if not robot_command_sent:
+                try:
+                    self.face_executor(validated.face)
+                except Exception:
+                    pass
 
         return {
             "ok": True,

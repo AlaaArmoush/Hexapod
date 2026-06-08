@@ -89,7 +89,7 @@ TOOL_REGISTRY: List[ToolMeta] = [
     _meta("mic_status", "Report microphone availability and status.", [], [], "microphone", needs_microphone=True),
     _meta("voice_direction_estimate", "Estimate the direction of a speaker.", [], [], "microphone", needs_microphone=True),
     _meta("camera_status", "Report camera availability and status.", [], [], "camera", implemented=True, fn=camera_status, needs_camera=True),
-    _meta("tell_joke", "Tell a short local joke.", [], [], "speaking"),
+    _meta("tell_joke", "Tell a short local joke.", [], [], "audio"),
     _meta("local_file_lookup", "Look up a local file or note by query.", ["query"], [], "memory"),
     _meta("read_project_note", "Read a local project note by name.", ["name"], [], "memory"),
     _meta("explain_capability", "Explain one known robot capability.", ["capability"], [], "system"),
