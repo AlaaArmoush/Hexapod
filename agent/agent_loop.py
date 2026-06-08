@@ -10,7 +10,7 @@ from .agent_errors import AgentPlanError
 from .agent_plan import parse_agent_plan
 from .agent_validator import validate_agent_plan
 from .fast_robot_intent import build_fast_robot_plan
-from .prompts import RUNTIME_SYSTEM_PROMPT, build_prompt
+from .prompts import RUNTIME_SYSTEM_PROMPT
 from .tool_executor import execute_tools
 
 
@@ -50,7 +50,6 @@ class AgentLoop:
         self.verbose = verbose
         self.enable_tools = enable_tools
         self.summarize_tool_results = summarize_tool_results
-        self._use_dynamic_prompt = system_prompt is None
         self.system_prompt = system_prompt or RUNTIME_SYSTEM_PROMPT
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -65,9 +64,8 @@ class AgentLoop:
         started_at = time.perf_counter()
         timings: dict[str, Any] = {}
 
-        prompt = build_prompt(user_input) if self._use_dynamic_prompt else self.system_prompt
         messages = [
-            {"role": "system", "content": prompt},
+            {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_input},
         ]
 
