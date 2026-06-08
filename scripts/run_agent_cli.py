@@ -131,6 +131,14 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
             enable_robot=not args.no_robot,
         )
 
+    def face_executor(face_name: str) -> None:
+        if robot_executor.dry_run:
+            return
+        try:
+            robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
+        except Exception:
+            pass
+
     return AgentLoop(
         llama_client=client,
         mock_llm=args.mock_llm,
@@ -142,6 +150,7 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
         temperature=args.temperature,
         max_tokens=args.max_tokens,
         json_response_format=args.json_response_format,
+        face_executor=face_executor if not args.no_robot else None,
     ), client
 
 

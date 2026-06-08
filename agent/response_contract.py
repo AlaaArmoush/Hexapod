@@ -56,7 +56,7 @@ FIRMWARE_COMPATIBLE_FACES = {
     "system",
     "wifi",
     "microphone",
-    "speaking",
+    "audio",
     "success",
 }
 
