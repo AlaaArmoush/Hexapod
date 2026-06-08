@@ -274,12 +274,15 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     strncpy(out.cameraPan.posName, pos, sizeof(out.cameraPan.posName) - 1);
     out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
     out.cameraPan.invalidPos = !parseCameraPanPos(pos, out.cameraPan);
+    out.cameraPan.invalidNumeric = invalidNumber(doc, "offset");
+    out.cameraPan.offsetDeg = doc["offset"] | 0;
   }
 
   out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
                        out.lean.invalidNumeric || out.look.invalidNumeric ||
                        out.nodShake.invalidNumeric ||
-                       out.face.invalidFace;
+                       out.face.invalidFace ||
+                       out.cameraPan.invalidNumeric;
 
   return PARSE_OK;
 }
@@ -415,15 +418,25 @@ static ParseResult parseText(char* line, RobotCommand& out) {
     out.idleStyle.style[sizeof(out.idleStyle.style) - 1] = '\0';
     out.idleStyle.invalidStyle = !isIdleStyle(out.idleStyle.style);
   } else if (out.type == ROBOT_CMD_CAMERA_PAN) {
-    char* pos = strtok(nullptr, " \t\r\n");
+    char* pos = equalsIgnoreCase(out.cmdName, "camera_center") ? nullptr : strtok(nullptr, " \t\r\n");
+    char* offset = strtok(nullptr, " \t\r\n");
+    if (pos && equalsIgnoreCase(pos, "--offset")) {
+      pos = nullptr;
+      if (!offset) offset = strtok(nullptr, " \t\r\n");
+    }
     strncpy(out.cameraPan.posName, pos ? pos : "center", sizeof(out.cameraPan.posName) - 1);
     out.cameraPan.posName[sizeof(out.cameraPan.posName) - 1] = '\0';
     out.cameraPan.invalidPos = !parseCameraPanPos(out.cameraPan.posName, out.cameraPan);
+    if (offset) {
+      if (equalsIgnoreCase(offset, "--offset")) offset = strtok(nullptr, " \t\r\n");
+      if (!parseTextInt(offset, out.cameraPan.offsetDeg)) out.cameraPan.invalidNumeric = true;
+    }
   }
 
   out.invalidNumeric = out.gait.invalidNumeric || out.rotate.invalidNumeric ||
                        out.lean.invalidNumeric || out.look.invalidNumeric ||
-                       out.nodShake.invalidNumeric || out.face.invalidFace;
+                       out.nodShake.invalidNumeric || out.face.invalidFace ||
+                       out.cameraPan.invalidNumeric;
 
   return PARSE_OK;
 }

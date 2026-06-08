@@ -269,16 +269,24 @@ def build_shake(count: int = 2) -> dict:
     return {"cmd": "shake", "count": count}
 
 
-def build_camera_pan(pos: str = "center") -> dict:
+def build_camera_pan(pos: str = "center", offset: int = 0) -> dict:
     pos = _ensure_string(pos, "pos")
     if pos not in CAMERA_PAN_POSITIONS:
         raise InvalidParameterError(f"camera_pan pos must be one of {sorted(CAMERA_PAN_POSITIONS)}, got {pos!r}")
+    _ensure_int(offset, "offset")
     normalized = {
         "slight_left": "front_left",
         "slight_right": "front_right",
     }.get(pos, pos)
-    return _ensure_no_forbidden_fields({"cmd": "camera_pan", "pos": normalized})
+    command = {"cmd": "camera_pan", "pos": normalized}
+    if offset != 0:
+        command["offset"] = offset
+    return _ensure_no_forbidden_fields(command)
 
 
-def build_camera_center() -> dict:
-    return {"cmd": "camera_center"}
+def build_camera_center(offset: int = 0) -> dict:
+    _ensure_int(offset, "offset")
+    command = {"cmd": "camera_center"}
+    if offset != 0:
+        command["offset"] = offset
+    return command

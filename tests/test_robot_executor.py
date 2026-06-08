@@ -14,18 +14,29 @@ class FakeBridge:
         self.connected = False
         self.closed = False
         self.commands = []
+        self.synced = False
         FakeBridge.instances.append(self)
 
     def connect(self):
         self.connected = True
 
     def close(self):
+        self.connected = False
         self.closed = True
+
+    def is_connected(self):
+        return self.connected and not self.closed
 
     def send_command(self, command):
         self.commands.append(command)
 
-    def wait_for_ok(self, cmd):
+    def sync(self, timeout=6.0):
+        self.synced = True
+        self.sync_timeout = timeout
+        return {"ok": True, "cmd": "ping", "json": {"ok": True, "cmd": "ping"}}
+
+    def wait_for_ok(self, cmd, timeout=2.0):
+        self.wait_timeout = timeout
         return {"ok": True, "cmd": cmd, "json": {"ok": True, "cmd": cmd}}
 
     def wait_for_status(self):
@@ -99,7 +110,49 @@ class RobotExecutorTests(unittest.TestCase):
         self.assertFalse(result["dry_run"])
         self.assertTrue(result["sent"])
         bridge = FakeBridge.instances[0]
+        self.assertTrue(bridge.synced)
         self.assertEqual(bridge.commands, [{"cmd": "wave", "leg": "RF", "count": 2}])
+        self.assertTrue(bridge.closed)
+        self.assertIn("robot_connect_s", result["timings"])
+        self.assertIn("robot_sync_s", result["timings"])
+        self.assertIn("robot_send_s", result["timings"])
+        self.assertIn("robot_ack_s", result["timings"])
+
+    def test_real_execution_can_skip_sync_for_diagnostics(self):
+        executor = RobotExecutor(
+            port="/dev/test",
+            dry_run=False,
+            bridge_factory=FakeBridge,
+            confirm_callback=lambda _command: True,
+            sync_robot=False,
+        )
+
+        result = executor.execute_command({"cmd": "wave", "leg": "RF", "count": 2})
+
+        bridge = FakeBridge.instances[0]
+        self.assertFalse(bridge.synced)
+        self.assertTrue(result["timings"]["robot_sync_skipped"])
+
+    def test_keep_connected_reuses_bridge_and_sync(self):
+        executor = RobotExecutor(
+            port="/dev/test",
+            dry_run=False,
+            bridge_factory=FakeBridge,
+            confirm_callback=lambda _command: True,
+            keep_connected=True,
+        )
+
+        first = executor.execute_command({"cmd": "wave", "leg": "RF", "count": 2})
+        second = executor.execute_command({"cmd": "blink"})
+
+        self.assertEqual(len(FakeBridge.instances), 1)
+        bridge = FakeBridge.instances[0]
+        self.assertFalse(bridge.closed)
+        self.assertEqual(bridge.commands, [{"cmd": "wave", "leg": "RF", "count": 2}, {"cmd": "blink"}])
+        self.assertIn("robot_sync_s", first["timings"])
+        self.assertTrue(second["timings"]["robot_connect_reused"])
+        self.assertTrue(second["timings"]["robot_sync_skipped"])
+        executor.close()
         self.assertTrue(bridge.closed)
 
     def test_stop_bypasses_confirmation(self):

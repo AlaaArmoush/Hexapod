@@ -231,7 +231,7 @@ bool robotCommandIdleStyle(IdleStyleCommand command) {
 bool robotCommandCameraPan(CameraPanCommand command, const char* cmdName) {
   robotCommandStop();
   activeCameraHeadCmd = cmdName ? cmdName : "camera_pan";
-  if (!cameraHeadStart(command.pos)) return false;
+  if (!cameraHeadStart(command.pos, command.offsetDeg)) return false;
   currentRobotMode = ROBOT_MODE_CAMERA_PAN;
   displaySetTemporaryFace(FACE_LISTENING, 0);
   return true;

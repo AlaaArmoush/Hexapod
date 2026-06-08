@@ -63,7 +63,7 @@
 // Camera head / face pan servo — MG996R on PCA9685.
 // Default: board 0 (0x40), channel 7. Keep board/channel centralized for wiring changes.
 #define CAMERA_SERVO_BOARD              0
-#define CAMERA_SERVO_CHANNEL            7
+#define CAMERA_SERVO_CHANNEL            11
 #define CAMERA_SERVO_MIN_DEG            30
 #define CAMERA_SERVO_MAX_DEG            150
 #define CAMERA_SERVO_TRIM               0

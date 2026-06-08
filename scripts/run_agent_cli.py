@@ -69,6 +69,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip movement confirmation in real robot mode.",
     )
     parser.add_argument(
+        "--no-fast-robot",
+        action="store_true",
+        help="Disable deterministic shortcuts for simple robot movement commands.",
+    )
+    parser.add_argument(
+        "--robot-sync",
+        choices=["ping", "none"],
+        default="ping",
+        help="Serial startup sync mode. Use none only for diagnosing reset/sync latency.",
+    )
+    parser.add_argument(
+        "--keep-robot-open",
+        action="store_true",
+        help="Keep the serial port open across turns. Interactive mode does this by default.",
+    )
+    parser.add_argument(
         "--summarize-tool-results",
         action="store_true",
         help="Ask the model to rewrite successful tool results as one short sentence.",
@@ -76,8 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_result(result: dict) -> None:
+def _print_result(result: dict, verbose: bool = False) -> None:
     print("Agent: {}".format(result["speak"]))
+    if verbose and result.get("timings"):
+        print("Timing: {}".format(_format_timings(result["timings"])))
 
     if not result["ok"]:
         if result.get("error"):
@@ -95,6 +113,8 @@ def _print_result(result: dict) -> None:
             if serial_json:
                 mode = "DRY-RUN" if data.get("dry_run") else "SEND"
                 print("Robot JSON [{}]: {}".format(mode, serial_json))
+            if verbose and data.get("timings"):
+                print("Robot timing: {}".format(_format_timings(data["timings"])))
         elif name == "camera_status":
             data = tool_result.get("data", {})
             if data:
@@ -120,7 +140,34 @@ def _print_result(result: dict) -> None:
                 )
 
 
-def _build_loop(args: argparse.Namespace) -> AgentLoop:
+def _format_timings(timings: dict) -> str:
+    parts = []
+    for key in (
+        "plan_source",
+        "model_s",
+        "parse_s",
+        "validate_s",
+        "tools_s",
+        "summarize_s",
+        "total_s",
+        "robot_connect_s",
+        "robot_connect_reused",
+        "robot_sync_s",
+        "robot_sync_skipped",
+        "robot_send_s",
+        "robot_ack_s",
+    ):
+        if key not in timings:
+            continue
+        value = timings[key]
+        if isinstance(value, float):
+            parts.append("{}={:.3f}s".format(key, value))
+        else:
+            parts.append("{}={}".format(key, value))
+    return " ".join(parts)
+
+
+def _build_loop(args: argparse.Namespace):
     client = None if args.mock_llm else LlamaClient(base_url=args.base_url, timeout=args.timeout)
     robot_executor = _build_robot_executor(args)
 
@@ -142,7 +189,8 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
         temperature=args.temperature,
         max_tokens=args.max_tokens,
         json_response_format=args.json_response_format,
-    ), client
+        fast_robot_shortcuts=not args.no_fast_robot,
+    ), client, robot_executor
 
 
 def _build_robot_executor(args: argparse.Namespace) -> RobotExecutor:
@@ -156,6 +204,8 @@ def _build_robot_executor(args: argparse.Namespace) -> RobotExecutor:
         dry_run=dry_run,
         require_confirmation=not args.yes,
         confirm_callback=_confirm_robot_command,
+        sync_robot=args.robot_sync != "none",
+        keep_connected=bool(args.keep_robot_open or args.once is None),
     )
 
 
@@ -170,32 +220,34 @@ def main(argv: list[str] | None = None) -> int:
     if args.dump_prompt:
         print(SYSTEM_PROMPT)
         return 0
-    loop, client = _build_loop(args)
+    loop, client, robot_executor = _build_loop(args)
 
-    if args.once is not None:
-        result = loop.run_once(args.once)
-        _print_result(result)
-        return 0 if result["ok"] else 2
-
-    # Interactive loop: warm up the KV cache once before the first user turn.
-    if client is not None:
-        if args.verbose:
-            print("[warming up KV cache...]")
-        system_prompt = SYSTEM_PROMPT if args.full_prompt else loop.system_prompt
-        client.warmup(system_prompt)
-
-    print("Hexapod Agent - type your message, or Ctrl+C to quit.")
     try:
+        if args.once is not None:
+            result = loop.run_once(args.once)
+            _print_result(result, verbose=args.verbose)
+            return 0 if result["ok"] else 2
+
+        # Interactive loop: warm up the KV cache once before the first user turn.
+        if client is not None:
+            if args.verbose:
+                print("[warming up KV cache...]")
+            system_prompt = SYSTEM_PROMPT if args.full_prompt else loop.system_prompt
+            client.warmup(system_prompt)
+
+        print("Hexapod Agent - type your message, or Ctrl+C to quit.")
         while True:
             user_input = input("\nYou: ").strip()
             if not user_input:
                 continue
             print("[thinking...]")
             result = loop.run_once(user_input)
-            _print_result(result)
+            _print_result(result, verbose=args.verbose)
     except (KeyboardInterrupt, EOFError):
         print("\nGoodbye.")
         return 0
+    finally:
+        robot_executor.close()
 
 
 if __name__ == "__main__":

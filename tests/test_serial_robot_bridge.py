@@ -13,6 +13,18 @@ class FakeSerial:
         self.writes = []
         self.flushed = False
         self.closed = False
+        self.dtr = True
+        self.rts = True
+        self.port = None
+        self.baudrate = None
+        self.timeout = None
+        self._read_buffer = bytearray()
+
+    def open(self):
+        self.is_open = True
+
+    def reset_input_buffer(self):
+        pass
 
     def write(self, payload):
         self.writes.append(payload)
@@ -20,9 +32,13 @@ class FakeSerial:
     def flush(self):
         self.flushed = True
 
-    def readline(self):
-        if self.lines:
-            return self.lines.pop(0)
+    def read(self, size=1):
+        if not self._read_buffer and self.lines:
+            self._read_buffer.extend(self.lines.pop(0))
+        if self._read_buffer:
+            chunk = self._read_buffer[:size]
+            del self._read_buffer[:size]
+            return bytes(chunk)
         return b""
 
     def close(self):
@@ -49,7 +65,12 @@ def test_connect_opens_serial(monkeypatch):
     bridge.connect()
 
     assert bridge.is_connected()
-    serial_ctor.assert_called_once_with("/dev/test", 115200, timeout=0.25)
+    serial_ctor.assert_called_once_with()
+    assert bridge._serial.port == "/dev/test"
+    assert bridge._serial.baudrate == 115200
+    assert bridge._serial.timeout == 0.1
+    assert bridge._serial.dtr is False
+    assert bridge._serial.rts is False
 
 
 def test_connect_wraps_serial_exception(monkeypatch):
@@ -158,6 +179,15 @@ def test_wait_for_ok_times_out():
 
     with pytest.raises(TimeoutError):
         bridge.wait_for_ok(timeout=0.001)
+
+
+def test_sync_retries_ping_until_firmware_answers():
+    bridge = connected_bridge(FakeSerial([b'{"ok":true,"cmd":"ping"}\n']))
+
+    response = bridge.sync(timeout=0.2, attempt_timeout=0.01)
+
+    assert response["cmd"] == "ping"
+    assert bridge._serial.writes == [b'{"cmd":"ping"}\n']
 
 
 def test_wait_for_status_returns_status_response():

@@ -65,32 +65,10 @@ void loop() {
 #include "serial_protocol.h"
 #include "servo_driver.h"
 
-static void printPcaStatus(const char *name, uint8_t board) {
-  uint8_t address = pcaAddressForBoard(board);
-  Serial.print("PCA9685 ");
-  Serial.print(name);
-  Serial.print(" 0x");
-  if (address < 16) Serial.print("0");
-  Serial.print(address, HEX);
-  Serial.print(": ");
-  Serial.println(pcaBoardPresent(board) ? "FOUND" : "MISSING");
-}
-
 void setup() {
   Serial.begin(115200);
   delay(SERIAL_STARTUP_DELAY_MS);
 
-  Wire.begin(I2C_SDA, I2C_SCL);
-  Wire.setClock(I2C_CLOCK_HZ);
-  Wire.setTimeOut(50);
-  Serial.println("Checking PCA9685 I2C devices...");
-  printPcaStatus("left", 0);
-  printPcaStatus("right", 1);
-
-  // ESP32 I2C peripheral can lock after a NACK during probe.
-  // Flush and reinitialise the bus before handing it to the drivers.
-  Wire.end();
-  delay(10);
   Wire.begin(I2C_SDA, I2C_SCL);
   Wire.setClock(I2C_CLOCK_HZ);
   Wire.setTimeOut(50);
@@ -103,8 +81,18 @@ void setup() {
   servoDriver_1.setOscillatorFrequency(27000000);
   servoDriver_1.setPWMFreq(SERVO_FREQ);
 
+  // servoDriver.begin() uses requestFrom() which can leave the I2C bus locked
+  // if the device is absent. Reset the bus so the display and future I2C
+  // operations work reliably.
+  Wire.end();
+  delay(10);
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Wire.setClock(I2C_CLOCK_HZ);
+  Wire.setTimeOut(50);
+
   displayInit();
   robotInit();
+  while (Serial.available()) Serial.read();
   serialProtocolInit();
 
 #if AUTO_STAND_ON_BOOT
