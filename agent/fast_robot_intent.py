@@ -68,6 +68,8 @@ def _posture_command(text: str) -> dict[str, Any] | None:
         return {"cmd": "stand"}
     if text in {"sit", "sit down"}:
         return {"cmd": "sit"}
+    if text in {"wave", "wave at me", "wave hello", "wave hi"}:
+        return {"cmd": "wave", "leg": "RF", "count": 2}
     if text in {"status", "robot status", "ping"}:
         return {"cmd": "ping" if text == "ping" else "status"}
     return None
@@ -142,6 +144,8 @@ def _response_for_command(command: dict[str, Any]) -> dict[str, str]:
         return {"speak": phrase, "emotion": "neutral", "face": "walking"}
     if cmd == "rotate":
         return {"speak": f"Turning {command['dir']}.", "emotion": "neutral", "face": "walking"}
+    if cmd == "wave":
+        return {"speak": "Waving!", "emotion": "happy", "face": "waving"}
     if cmd == "stop":
         return {"speak": "Stopping.", "emotion": "neutral", "face": "system"}
     if cmd == "stand":
