@@ -38,11 +38,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the active system prompt and exit.",
     )
-    parser.add_argument(
-        "--full-prompt",
-        action="store_true",
-        help="Use the full unified prompt explicitly. The default runtime prompt is the same contract.",
-    )
     parser.add_argument("--no-tools", action="store_true", help="Validate tool requests without executing tools.")
     parser.add_argument(
         "--no-robot",
@@ -134,10 +129,13 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
     def face_executor(face_name: str) -> None:
         if robot_executor.dry_run:
             return
+        if args.verbose:
+            print(f"[face] sending face={face_name!r}")
         try:
             robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
-        except Exception:
-            pass
+        except Exception as exc:
+            if args.verbose:
+                print(f"[face] failed for {face_name!r}: {exc}")
 
     return AgentLoop(
         llama_client=client,
@@ -146,7 +144,7 @@ def _build_loop(args: argparse.Namespace) -> AgentLoop:
         enable_tools=not args.no_tools,
         tool_executor=tool_executor,
         summarize_tool_results=args.summarize_tool_results,
-        system_prompt=SYSTEM_PROMPT if args.full_prompt else None,
+        system_prompt=SYSTEM_PROMPT,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
         json_response_format=args.json_response_format,
@@ -190,10 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     if client is not None:
         if args.verbose:
             print("[warming up KV cache...]")
-        # When using dynamic prompts, warm up with the full prompt so the base
-        # section (which every turn shares) is already in the KV cache.
-        warmup_prompt = loop.system_prompt if loop.system_prompt is not None else SYSTEM_PROMPT
-        client.warmup(warmup_prompt)
+        client.warmup(loop.system_prompt)
 
     print("Hexapod Agent - type your message, or Ctrl+C to quit.")
     try:
