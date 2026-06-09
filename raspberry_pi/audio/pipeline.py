@@ -129,12 +129,15 @@ class VoicePipeline:
         if self._cmd_fn is None:
             return
         from bridge.robot_commands import build_camera_pan, build_rotate
-        if direction == "back":
-            self._cmd_fn(build_rotate(dir="left", degrees=180))
-            self._cmd_fn(build_camera_pan(pos="center"))
-        else:
-            pan_pos = direction if direction not in ("front", "center") else "center"
-            self._cmd_fn(build_camera_pan(pos=pan_pos))
+        try:
+            if direction == "back":
+                self._cmd_fn(build_rotate(dir="left", degrees=180))
+                self._cmd_fn(build_camera_pan(pos="center"))
+            else:
+                pan_pos = direction if direction not in ("front", "center") else "center"
+                self._cmd_fn(build_camera_pan(pos=pan_pos))
+        except Exception as exc:
+            print(f"[pipeline] direction command failed (ignored): {exc}", file=sys.stderr)
 
     def _process_transcript(self, text: str) -> None:
         """THINKING → SPEAKING → WAKE_LISTENING or LISTENING for one transcript."""
