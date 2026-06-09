@@ -53,24 +53,24 @@ class TestVoicePipelineStateMachine(unittest.TestCase):
         p._process_transcript("hello robot")
         self.assertEqual(tts.said, ["hello robot"])
 
-    def test_filler_plays_before_tts(self):
+    def test_agent_called_before_tts(self):
         order = []
-
-        class OrderedCanned(_MockCanned):
-            def play(self, key):
-                order.append(("canned", key))
-                super().play(key)
 
         def agent(text):
             order.append(("agent", text))
             return "ok"
 
+        class TrackingTTS(_MockTTS):
+            def say(self, text, player=None):
+                order.append(("tts", text))
+                super().say(text, player)
+
         p, _, _ = _make_pipeline(agent_fn=agent)
-        p._canned = OrderedCanned()
+        p._tts = TrackingTTS()
         p._process_transcript("walk forward")
 
-        self.assertEqual(order[0], ("canned", "okay"))
-        self.assertEqual(order[1], ("agent", "walk forward"))
+        self.assertEqual(order[0], ("agent", "walk forward"))
+        self.assertEqual(order[1], ("tts", "ok"))
 
     def test_agent_called_with_full_transcript(self):
         agent_calls: list[str] = []
@@ -117,10 +117,10 @@ class TestVoicePipelineStateMachine(unittest.TestCase):
         p._on_transcript("stand")
         self.assertEqual(p._state, _State.THINKING)
 
-    def test_filler_key_is_okay(self):
+    def test_no_filler_played_by_process_transcript(self):
         p, canned, tts = _make_pipeline()
         p._process_transcript("anything")
-        self.assertIn("okay", canned.plays)
+        self.assertEqual(canned.plays, [])
 
     def test_agent_response_is_what_tts_speaks(self):
         p, canned, tts = _make_pipeline(agent_fn=lambda _: "synthesized reply")

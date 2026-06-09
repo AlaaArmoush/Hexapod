@@ -56,8 +56,6 @@ class VoicePipeline:
     def _process_transcript(self, text: str) -> None:
         """THINKING → SPEAKING → LISTENING for one transcript."""
         print(f"[pipeline] THINKING: {text!r}", file=sys.stderr)
-        self._canned.play("okay")
-        time.sleep(0.4)
         response = self._agent_fn(text) if self._agent_fn else text
         self._state = _State.SPEAKING
         print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
