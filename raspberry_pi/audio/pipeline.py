@@ -140,8 +140,8 @@ def _build_agent_fn(
         keep_connected=True,   # persistent serial — no connect/sync overhead per command
     )
 
-    def tool_executor(tool_requests, _user_input=""):
-        return execute_tools(tool_requests, robot_executor=robot_executor, enable_robot=True)
+    def tool_executor(tool_requests, user_input=""):
+        return execute_tools(tool_requests, robot_executor=robot_executor, enable_robot=True, user_input=user_input)
 
     def face_executor(face_name: str) -> None:
         robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
