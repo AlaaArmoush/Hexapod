@@ -24,7 +24,7 @@ class RealDirectionEstimator(DirectionEstimator):
         CH0 (GND) ●    ● CH2 (GND)
         BACK
 
-    Left  = CH0 + CH1,  Right = CH2 + CH3
+    Left  = CH2 + CH3,  Right = CH0 + CH1
     Front = CH0 + CH2,  Back  = CH1 + CH3
 
     Returns one of: "left", "front_left", "front", "front_right", "right", "back", "center"
@@ -44,8 +44,8 @@ class RealDirectionEstimator(DirectionEstimator):
     def update(self, multichannel_chunk: np.ndarray) -> None:
         """Accumulate energy from a 4-channel chunk (shape: [frames, 4])."""
         ch0, ch1, ch2, ch3 = (multichannel_chunk[:, i] for i in range(4))
-        left  = (self._rms(ch0) + self._rms(ch1)) / 2
-        right = (self._rms(ch2) + self._rms(ch3)) / 2
+        left  = (self._rms(ch2) + self._rms(ch3)) / 2
+        right = (self._rms(ch0) + self._rms(ch1)) / 2
         front = (self._rms(ch0) + self._rms(ch2)) / 2
         back  = (self._rms(ch1) + self._rms(ch3)) / 2
         for lst, val in (
