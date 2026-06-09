@@ -1,10 +1,12 @@
 """
 VoicePipeline — capture → STT → agent → TTS state machine.
 
-States: IDLE → LISTENING → THINKING → SPEAKING → LISTENING
+States (no wake word): IDLE → LISTENING → THINKING → SPEAKING → LISTENING
+States (wake word):    IDLE → WAKE_LISTENING → LISTENING → THINKING → SPEAKING → WAKE_LISTENING
 
 Usage:
     python -m raspberry_pi.audio.pipeline                              # llama-server on localhost:8080
+    python -m raspberry_pi.audio.pipeline --wake-word                  # require "Hey Heksah" first
     python -m raspberry_pi.audio.pipeline --enable-robot --port /dev/ttyUSB0
     python -m raspberry_pi.audio.pipeline --base-url http://HOST:8080
 """
@@ -21,6 +23,7 @@ from typing import Callable
 
 class _State(Enum):
     IDLE = auto()
+    WAKE_LISTENING = auto()
     LISTENING = auto()
     THINKING = auto()
     SPEAKING = auto()
@@ -33,16 +36,19 @@ class VoicePipeline:
         face_fn: Callable[[str], None] | None = None,
         canned=None,
         tts=None,
+        use_wake_word: bool = False,
     ) -> None:
         self._agent_fn = agent_fn
-        self._face_fn = face_fn   # optional: face_fn(face_name) → OLED update
+        self._face_fn = face_fn
         self._canned = canned
         self._tts = tts
+        self._use_wake_word = use_wake_word
         self._state = _State.IDLE
-        self._queue: queue.Queue[str] = queue.Queue()
+        self._queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._running = False
         self._cap = None
         self._stt = None
+        self._detector = None
         self._spoke_at: float = 0.0
 
     _POST_SPEAK_COOLDOWN = 1.2
@@ -61,6 +67,11 @@ class VoicePipeline:
             except Exception:
                 pass
 
+    def _on_wakeword(self, model_name: str, score: float) -> None:
+        if self._state == _State.WAKE_LISTENING:
+            self._state = _State.LISTENING  # block re-entry before queue is drained
+            self._queue.put_nowait(("wake", model_name))
+
     def _on_transcript(self, text: str) -> None:
         if self._state == _State.LISTENING:
             if time.monotonic() - self._spoke_at < self._POST_SPEAK_COOLDOWN:
@@ -68,10 +79,49 @@ class VoicePipeline:
             self._state = _State.THINKING
             if self._stt is not None:
                 self._stt.pause()
-            self._queue.put_nowait(text)
+            self._queue.put_nowait(("transcript", text))
+
+    def _start_stt(self) -> None:
+        from .capture import AudioCapture
+        from .stt import MoonshineSTT
+        self._stt = MoonshineSTT(on_final=self._on_transcript)
+        self._cap = AudioCapture(on_chunk=self._stt.feed)
+        self._stt.start()
+        self._cap.start()
+
+    def _stop_stt(self) -> None:
+        if self._stt is not None:
+            self._stt.stop()
+            self._stt = None
+        if self._cap is not None:
+            self._cap.stop()
+            self._cap = None
+
+    def _start_detector(self) -> None:
+        from raspberry_pi.wake_word.pipeline import WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
+        from raspberry_pi.wake_word.detector import WakeWordDetector
+        self._detector = WakeWordDetector(
+            model_path=WAKEWORD_MODEL_PATH,
+            on_wakeword=self._on_wakeword,
+            threshold=WAKEWORD_THRESHOLD,
+            device=AUDIO_DEVICE,
+        )
+        self._detector.start()
+
+    def _stop_detector(self) -> None:
+        if self._detector is not None:
+            self._detector.stop()
+            self._detector = None
+
+    def _handle_wakeword(self) -> None:
+        print("[pipeline] wake word → starting STT", file=sys.stderr)
+        self._stop_detector()
+        self._start_stt()
+        self._face("listening")
+        print("[pipeline] LISTENING — speak a command", file=sys.stderr)
 
     def _process_transcript(self, text: str) -> None:
-        """THINKING → SPEAKING → LISTENING for one transcript."""
+        """THINKING → SPEAKING → WAKE_LISTENING or LISTENING for one transcript."""
         print(f"[pipeline] THINKING: {text!r}", file=sys.stderr)
         if not self._is_fast_intent(text):
             self._face("thinking")
@@ -81,17 +131,22 @@ class VoicePipeline:
             print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
             self._tts.say(response)
         self._spoke_at = time.monotonic()
-        self._state = _State.LISTENING
-        if self._cap is not None:
-            self._cap.flush()
-        if self._stt is not None:
-            self._stt.resume()
-        self._face("listening")
-        print("[pipeline] back to LISTENING", file=sys.stderr)
+        if self._use_wake_word:
+            self._stop_stt()
+            self._start_detector()
+            self._state = _State.WAKE_LISTENING
+            self._face("idle")
+            print("[pipeline] back to WAKE_LISTENING", file=sys.stderr)
+        else:
+            self._state = _State.LISTENING
+            if self._cap is not None:
+                self._cap.flush()
+            if self._stt is not None:
+                self._stt.resume()
+            self._face("listening")
+            print("[pipeline] back to LISTENING", file=sys.stderr)
 
     def start(self) -> None:
-        from .capture import AudioCapture
-        from .stt import MoonshineSTT
         from .canned import CannedLines
         from .tts import PiperTTS
         from .playback import AudioPlayer
@@ -103,23 +158,29 @@ class VoicePipeline:
         if self._tts is None:
             self._tts = PiperTTS()
 
-        self._stt = MoonshineSTT(on_final=self._on_transcript)
-        self._cap = AudioCapture(on_chunk=self._stt.feed)
-
-        self._stt.start()
-        self._cap.start()
         self._running = True
-        self._state = _State.LISTENING
-        self._face("listening")
-        print("[pipeline] LISTENING — speak a command, Ctrl-C to quit", file=sys.stderr)
+
+        if self._use_wake_word:
+            self._start_detector()
+            self._state = _State.WAKE_LISTENING
+            self._face("idle")
+            print("[pipeline] WAKE_LISTENING — say 'Hey Heksah'", file=sys.stderr)
+        else:
+            self._start_stt()
+            self._state = _State.LISTENING
+            self._face("listening")
+            print("[pipeline] LISTENING — speak a command, Ctrl-C to quit", file=sys.stderr)
 
         try:
             while self._running:
                 try:
-                    text = self._queue.get(timeout=0.2)
+                    kind, payload = self._queue.get(timeout=0.2)
                 except queue.Empty:
                     continue
-                self._process_transcript(text)
+                if kind == "wake":
+                    self._handle_wakeword()
+                else:
+                    self._process_transcript(payload)
         except KeyboardInterrupt:
             print("\n[pipeline] stopping", file=sys.stderr)
         finally:
@@ -127,12 +188,8 @@ class VoicePipeline:
 
     def stop(self) -> None:
         self._running = False
-        if self._stt is not None:
-            self._stt.stop()
-            self._stt = None
-        if self._cap is not None:
-            self._cap.stop()
-            self._cap = None
+        self._stop_stt()
+        self._stop_detector()
         self._state = _State.IDLE
 
 
@@ -201,13 +258,14 @@ def main() -> None:
     parser.add_argument("--enable-robot", action="store_true", help="Send validated commands to hardware.")
     parser.add_argument("--port", help="Serial port, e.g. /dev/ttyUSB0.")
     parser.add_argument("--baudrate", type=int, default=115200)
+    parser.add_argument("--wake-word", action="store_true", help="Require 'Hey Heksah' before each command.")
     args = parser.parse_args()
 
     if args.enable_robot and not args.port:
         parser.error("--enable-robot requires --port")
 
     agent_fn, face_fn = _build_agent_fn(args)
-    VoicePipeline(agent_fn=agent_fn, face_fn=face_fn).start()
+    VoicePipeline(agent_fn=agent_fn, face_fn=face_fn, use_wake_word=args.wake_word).start()
 
 
 if __name__ == "__main__":
