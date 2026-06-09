@@ -58,8 +58,9 @@ class VoicePipeline:
         print(f"[pipeline] THINKING: {text!r}", file=sys.stderr)
         response = self._agent_fn(text) if self._agent_fn else text
         self._state = _State.SPEAKING
-        print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
-        self._tts.say(response)
+        if response:
+            print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
+            self._tts.say(response)
         self._spoke_at = time.monotonic()
         self._state = _State.LISTENING
         print("[pipeline] back to LISTENING", file=sys.stderr)
@@ -143,8 +144,11 @@ def _build_agent_fn(args: argparse.Namespace) -> Callable[[str], str]:
     )
 
     def agent_fn(text: str) -> str:
-        face_executor("thinking")
         result = loop.run_once(text)
+        # Fast-intent commands (stand, sit, wave …) execute immediately with no
+        # LLM round-trip; skip TTS so the robot moves without any audio delay.
+        if result.get("timings", {}).get("plan_source") == "fast_robot":
+            return ""
         parts = [result["speak"]] if result.get("speak") else []
         for tr in result.get("tool_results", []):
             spoken = tr.get("spoken_text")
