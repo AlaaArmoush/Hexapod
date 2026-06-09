@@ -13,11 +13,8 @@ import time
 from enum import Enum, auto
 from pathlib import Path
 
-import numpy as np
-
 from bridge.robot_commands import build_camera_pan
 from .detector import WakeWordDetector
-from .direction import RealDirectionEstimator
 
 WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 WAKEWORD_THRESHOLD = 0.3
@@ -39,33 +36,26 @@ class WakeWordPipeline:
 
         self._bridge = SerialRobotBridge(port=SERIAL_PORT)
         self._state = _State.IDLE
-        self._direction_est = RealDirectionEstimator()
-        self._pending_direction: str = "center"
         self._detector: WakeWordDetector | None = None
         self._last_detection_time: float = 0.0
 
-    def _on_wakeword(self, model_name: str, score: float) -> None:
+    def _on_wakeword(self, model_name: str, score: float, direction: str) -> None:
         if self._state != _State.LISTENING:
             return
         if time.monotonic() - self._last_detection_time < COOLDOWN_SECS:
             return
         self._last_detection_time = time.monotonic()
-        print(f"\n[wake] '{model_name}' detected (score={score:.3f})", file=sys.stderr)
+        print(f"\n[wake] '{model_name}' detected (score={score:.3f}, direction={direction!r})", file=sys.stderr)
         self._state = _State.WAKEWORD_DETECTED
-        self._pending_direction = self._direction_est.estimate(np.array([], dtype=np.int16))
-        self._pan()
+        self._pan(direction)
 
-    def _pan(self) -> None:
+    def _pan(self, direction: str) -> None:
         self._state = _State.PANNING
-        print(f"[pipeline] direction={self._pending_direction!r} → sending camera_pan", file=sys.stderr)
-        self._bridge.send_command(build_camera_pan(pos=self._pending_direction))
-        self._direction_est.reset()
+        pan_pos = direction if direction not in ("front", "back", "center") else "center"
+        print(f"[pipeline] direction={direction!r} → camera_pan {pan_pos!r}", file=sys.stderr)
+        self._bridge.send_command(build_camera_pan(pos=pan_pos))
         self._state = _State.LISTENING
         print("[pipeline] back to LISTENING", file=sys.stderr)
-
-    def on_wakeword_confirmed(self, direction: str) -> None:
-        """Entry point for future STT stage."""
-        pass
 
     def start(self) -> None:
         from raspberry_pi.audio.scripts.audio_mode import listen as audio_listen

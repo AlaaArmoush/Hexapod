@@ -34,12 +34,14 @@ class VoicePipeline:
         self,
         agent_fn: Callable[[str], str] | None = None,
         face_fn: Callable[[str], None] | None = None,
+        cmd_fn: Callable[[dict], None] | None = None,
         canned=None,
         tts=None,
         use_wake_word: bool = False,
     ) -> None:
         self._agent_fn = agent_fn
         self._face_fn = face_fn
+        self._cmd_fn = cmd_fn
         self._canned = canned
         self._tts = tts
         self._use_wake_word = use_wake_word
@@ -67,10 +69,10 @@ class VoicePipeline:
             except Exception:
                 pass
 
-    def _on_wakeword(self, model_name: str, score: float) -> None:
+    def _on_wakeword(self, model_name: str, score: float, direction: str) -> None:
         if self._state == _State.WAKE_LISTENING:
             self._state = _State.LISTENING  # block re-entry before queue is drained
-            self._queue.put_nowait(("wake", model_name))
+            self._queue.put_nowait(("wake", direction))
 
     def _on_transcript(self, text: str) -> None:
         if self._state == _State.LISTENING:
@@ -115,12 +117,24 @@ class VoicePipeline:
             self._detector.stop()
             self._detector = None
 
-    def _handle_wakeword(self) -> None:
-        print("[pipeline] wake word → starting STT", file=sys.stderr)
+    def _handle_wakeword(self, direction: str) -> None:
+        print(f"[pipeline] wake word (direction={direction!r}) → starting STT", file=sys.stderr)
         self._stop_detector()
+        self._dispatch_direction(direction)
         self._start_stt()
         self._face("listening")
         print("[pipeline] LISTENING — speak a command", file=sys.stderr)
+
+    def _dispatch_direction(self, direction: str) -> None:
+        if self._cmd_fn is None:
+            return
+        from bridge.robot_commands import build_camera_pan, build_rotate
+        if direction == "back":
+            self._cmd_fn(build_rotate(dir="left", degrees=180))
+            self._cmd_fn(build_camera_pan(pos="center"))
+        else:
+            pan_pos = direction if direction not in ("front", "center") else "center"
+            self._cmd_fn(build_camera_pan(pos=pan_pos))
 
     def _process_transcript(self, text: str) -> None:
         """THINKING → SPEAKING → WAKE_LISTENING or LISTENING for one transcript."""
@@ -180,7 +194,7 @@ class VoicePipeline:
                 except queue.Empty:
                     continue
                 if kind == "wake":
-                    self._handle_wakeword()
+                    self._handle_wakeword(payload)
                 else:
                     self._process_transcript(payload)
         except KeyboardInterrupt:
@@ -197,7 +211,7 @@ class VoicePipeline:
 
 def _build_agent_fn(
     args: argparse.Namespace,
-) -> tuple[Callable[[str], str], Callable[[str], None]]:
+) -> tuple[Callable[[str], str], Callable[[str], None], Callable[[dict], None]]:
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     from agent.agent_loop import AgentLoop
     from agent.llama_client import LlamaClient
@@ -218,6 +232,9 @@ def _build_agent_fn(
 
     def face_executor(face_name: str) -> None:
         robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
+
+    def cmd_executor(cmd: dict) -> None:
+        robot_executor.execute_command(cmd)
 
     client = LlamaClient(base_url=args.base_url, timeout=args.timeout)
     loop = AgentLoop(
@@ -250,7 +267,7 @@ def _build_agent_fn(
             parts.insert(0, result["speak"])
         return " ".join(parts)
 
-    return agent_fn, face_executor
+    return agent_fn, face_executor, cmd_executor
 
 
 def main() -> None:
@@ -266,8 +283,8 @@ def main() -> None:
     if args.enable_robot and not args.port:
         parser.error("--enable-robot requires --port")
 
-    agent_fn, face_fn = _build_agent_fn(args)
-    VoicePipeline(agent_fn=agent_fn, face_fn=face_fn, use_wake_word=args.wake_word).start()
+    agent_fn, face_fn, cmd_fn = _build_agent_fn(args)
+    VoicePipeline(agent_fn=agent_fn, face_fn=face_fn, cmd_fn=cmd_fn, use_wake_word=args.wake_word).start()
 
 
 if __name__ == "__main__":
