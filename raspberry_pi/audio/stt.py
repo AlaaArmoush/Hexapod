@@ -1,14 +1,16 @@
 """
-MoonshineSTT — energy-VAD segmentation + moonshine-onnx transcription.
+MoonshineSTT — streaming transcription via moonshine-voice.
 
-Accepts 16 kHz mono float32 chunks from AudioCapture.  Buffers audio while
-speech is detected, then transcribes the full utterance once silence returns.
+Moonshine handles VAD and segmentation internally; on_final fires once per
+completed utterance.
 
-Install on Pi: pip install moonshine-onnx
+Install: pip install moonshine-voice
+Download model: python -m moonshine_voice.download --language en
 """
 from __future__ import annotations
 
 import sys
+import time
 from typing import Callable
 
 import numpy as np
@@ -17,60 +19,30 @@ from . import config
 
 
 class MoonshineSTT:
-    def __init__(self, on_final: Callable[[str], None]) -> None:
-        from moonshine_onnx import MoonshineOnnxModel, load_tokenizer
+    def __init__(self, on_final: Callable[[str], None],
+                 model_name: str = config.MOONSHINE_MODEL_NAME) -> None:
+        from moonshine_voice import Transcriber, TranscriptEventListener, ModelArch, get_model_path
 
-        self._model = MoonshineOnnxModel(model_name=config.MOONSHINE_MODEL)
-        self._tokenizer = load_tokenizer()
-        self._on_final = on_final
+        class _Listener(TranscriptEventListener):
+            def on_line_completed(self_, event) -> None:
+                text = event.line.text.strip()
+                print(f"[stt] transcript: {text!r}", file=sys.stderr)
+                if text:
+                    on_final(text)
 
-        self._speech_buf: list[np.ndarray] = []
-        self._in_speech = False
-        self._silence_frames = 0
+        model_path = get_model_path(model_name)
+        arch = ModelArch.BASE if "base" in model_name else ModelArch.TINY
+        self._t = Transcriber(model_path=str(model_path), model_arch=arch)
+        self._t.add_listener(_Listener())
 
-        # how many 100ms chunks of silence close an utterance
-        self._silence_chunks_needed = int(
-            config.VAD_SPEECH_PAD_MS / 100
-        )
-        self._min_speech_samples = int(
-            config.VAD_MIN_SPEECH_MS / 1000 * config.STT_SAMPLE_RATE
-        )
+    def start(self) -> None:
+        self._t.start()
+
+    def stop(self) -> None:
+        self._t.stop()
 
     def feed(self, chunk: np.ndarray) -> None:
-        """Call with each 16 kHz mono float32 chunk from AudioCapture."""
-        rms = float(np.sqrt(np.mean(chunk ** 2)))
-        is_speech = rms > config.VAD_ENERGY_THRESHOLD
-
-        if is_speech:
-            if not self._in_speech:
-                print("[stt] speech start", file=sys.stderr)
-            self._in_speech = True
-            self._silence_frames = 0
-
-        if self._in_speech:
-            self._speech_buf.append(chunk)
-
-        if self._in_speech and not is_speech:
-            self._silence_frames += 1
-            if self._silence_frames >= self._silence_chunks_needed:
-                self._flush()
-
-    def _flush(self) -> None:
-        audio = np.concatenate(self._speech_buf)
-        self._speech_buf = []
-        self._in_speech = False
-        self._silence_frames = 0
-
-        if len(audio) < self._min_speech_samples:
-            print("[stt] discarded (too short)", file=sys.stderr)
-            return
-
-        print(f"[stt] transcribing {len(audio)/config.STT_SAMPLE_RATE:.1f}s …", file=sys.stderr)
-        tokens = self._model.generate(audio)
-        text = self._tokenizer.decode_batch(tokens)[0].strip()
-        print(f"[stt] transcript: {text!r}", file=sys.stderr)
-        if text:
-            self._on_final(text)
+        self._t.add_audio(chunk, config.STT_SAMPLE_RATE)
 
 
 def run_live() -> None:
@@ -80,21 +52,20 @@ def run_live() -> None:
     def on_final(text: str) -> None:
         print(f"\n>>> {text}\n")
 
+    print(f"Loading Moonshine model '{config.MOONSHINE_MODEL_NAME}' …")
     stt = MoonshineSTT(on_final=on_final)
     cap = AudioCapture(on_chunk=stt.feed)
 
-    print("Loading Moonshine model …")
-    print(f"Model: {config.MOONSHINE_MODEL}")
-    print("Listening — speak a command, Ctrl-C to quit.\n")
-
     cap.start()
+    stt.start()
+    print("Listening — speak a command, Ctrl-C to quit.\n")
     try:
-        import time
         while True:
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("\n[stt] stopping")
     finally:
+        stt.stop()
         cap.stop()
 
 
