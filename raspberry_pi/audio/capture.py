@@ -87,6 +87,14 @@ class AudioCapture:
         self._reader_thread.start()
         self._worker_thread.start()
 
+    def flush(self) -> None:
+        """Drain queued audio chunks so stale audio is not fed to STT on resume."""
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+
     def stop(self) -> None:
         self._running = False
         if self._proc is not None:
