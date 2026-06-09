@@ -69,7 +69,7 @@ class TestVoicePipelineStateMachine(unittest.TestCase):
         p._canned = OrderedCanned()
         p._process_transcript("walk forward")
 
-        self.assertEqual(order[0], ("canned", "on_it"))
+        self.assertEqual(order[0], ("canned", "okay"))
         self.assertEqual(order[1], ("agent", "walk forward"))
 
     def test_agent_called_with_full_transcript(self):
@@ -117,10 +117,10 @@ class TestVoicePipelineStateMachine(unittest.TestCase):
         p._on_transcript("stand")
         self.assertEqual(p._state, _State.THINKING)
 
-    def test_filler_key_is_on_it(self):
+    def test_filler_key_is_okay(self):
         p, canned, tts = _make_pipeline()
         p._process_transcript("anything")
-        self.assertIn("on_it", canned.plays)
+        self.assertIn("okay", canned.plays)
 
     def test_agent_response_is_what_tts_speaks(self):
         p, canned, tts = _make_pipeline(agent_fn=lambda _: "synthesized reply")
