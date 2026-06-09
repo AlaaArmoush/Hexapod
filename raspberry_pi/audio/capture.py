@@ -32,6 +32,8 @@ class AudioCapture:
 
     def _reader(self) -> None:
         import sys
+        # arecord outputs a 44-byte WAV header before raw PCM data; skip it
+        self._proc.stdout.read(44)
         chunk_n = 0
         while self._running:
             data = self._proc.stdout.read(_CHUNK_BYTES)
@@ -49,7 +51,9 @@ class AudioCapture:
             self._on_chunk(mono_16k)
 
     def start(self) -> None:
+        import time
         _audio_listen()
+        time.sleep(0.1)   # let GPIO settle before ALSA opens the device
         self._proc = subprocess.Popen(
             [
                 "arecord",
@@ -57,8 +61,7 @@ class AudioCapture:
                 "-f", "S32_LE",
                 "-r", str(config.CAPTURE_RATE),
                 "-c", str(config.CAPTURE_CHANNELS),
-                "--file-type", "raw",
-                "-",   # write raw PCM to stdout
+                "-",   # write WAV to stdout; reader skips the 44-byte header
             ],
             stdout=subprocess.PIPE,
             stderr=None,   # let arecord errors print to terminal
