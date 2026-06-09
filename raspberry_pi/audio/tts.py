@@ -17,7 +17,11 @@ class PiperTTS:
 
     def synthesize(self, text: str) -> tuple[bytes, int]:
         """Return raw int16 PCM bytes and sample rate — no playback."""
-        chunks = [c.audio_int16_bytes for c in self.voice.synthesize(text)]
+        syn_config = None
+        if config.TTS_LENGTH_SCALE is not None:
+            from piper.config import SynthesisConfig
+            syn_config = SynthesisConfig(length_scale=config.TTS_LENGTH_SCALE)
+        chunks = [c.audio_int16_bytes for c in self.voice.synthesize(text, syn_config)]
         return b"".join(chunks), self.voice.config.sample_rate
 
     def synthesize_to_wav(self, text: str, path: str | Path) -> None:
