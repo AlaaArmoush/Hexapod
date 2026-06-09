@@ -31,14 +31,21 @@ class AudioCapture:
         self._running = False
 
     def _reader(self) -> None:
+        import sys
+        chunk_n = 0
         while self._running:
             data = self._proc.stdout.read(_CHUNK_BYTES)
             if not data or len(data) < _CHUNK_BYTES:
+                print(f"[capture] reader ended (got {len(data) if data else 0}/{_CHUNK_BYTES} bytes)", file=sys.stderr)
                 break
             # S32_LE interleaved → float32 [-1, 1], take channel 0
             pcm = np.frombuffer(data, dtype="<i4").reshape(-1, config.CAPTURE_CHANNELS)
             ch0 = pcm[:, 0].astype(np.float32) / (2**31)
             mono_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
+            chunk_n += 1
+            if chunk_n % 10 == 0:  # every ~1 second
+                rms = float(np.sqrt(np.mean(mono_16k ** 2)))
+                print(f"[capture] chunk {chunk_n}  rms={rms:.5f}", file=sys.stderr)
             self._on_chunk(mono_16k)
 
     def start(self) -> None:
@@ -54,7 +61,7 @@ class AudioCapture:
                 "-",   # write raw PCM to stdout
             ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=None,   # let arecord errors print to terminal
         )
         self._running = True
         self._thread = threading.Thread(target=self._reader, daemon=True)
