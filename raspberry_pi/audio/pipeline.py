@@ -66,6 +66,8 @@ class VoicePipeline:
             if time.monotonic() - self._spoke_at < self._POST_SPEAK_COOLDOWN:
                 return
             self._state = _State.THINKING
+            if self._stt is not None:
+                self._stt.pause()
             self._queue.put_nowait(text)
 
     def _process_transcript(self, text: str) -> None:
@@ -80,6 +82,10 @@ class VoicePipeline:
             self._tts.say(response)
         self._spoke_at = time.monotonic()
         self._state = _State.LISTENING
+        if self._cap is not None:
+            self._cap.flush()
+        if self._stt is not None:
+            self._stt.resume()
         self._face("listening")
         print("[pipeline] back to LISTENING", file=sys.stderr)
 

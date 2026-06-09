@@ -39,13 +39,21 @@ class MoonshineSTT:
         self._t.add_listener(_Listener())
 
     def start(self) -> None:
+        self._paused = False
         self._t.start()
 
     def stop(self) -> None:
         self._t.stop()
 
+    def pause(self) -> None:
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
+
     def feed(self, chunk: np.ndarray) -> None:
-        self._t.add_audio(chunk, config.STT_SAMPLE_RATE)
+        if not getattr(self, "_paused", False):
+            self._t.add_audio(chunk, config.STT_SAMPLE_RATE)
 
 
 def run_live() -> None:
