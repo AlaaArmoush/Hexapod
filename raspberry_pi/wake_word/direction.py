@@ -25,7 +25,7 @@ class RealDirectionEstimator(DirectionEstimator):
         BACK
 
     Left  = CH0 + CH1,  Right = CH2 + CH3
-    Front = CH1 + CH3,  Back  = CH0 + CH2
+    Front = CH0 + CH2,  Back  = CH1 + CH3
 
     Returns one of: "left", "front_left", "front", "front_right", "right", "back", "center"
     """
@@ -46,8 +46,8 @@ class RealDirectionEstimator(DirectionEstimator):
         ch0, ch1, ch2, ch3 = (multichannel_chunk[:, i] for i in range(4))
         left  = (self._rms(ch0) + self._rms(ch1)) / 2
         right = (self._rms(ch2) + self._rms(ch3)) / 2
-        front = (self._rms(ch1) + self._rms(ch3)) / 2
-        back  = (self._rms(ch0) + self._rms(ch2)) / 2
+        front = (self._rms(ch0) + self._rms(ch2)) / 2
+        back  = (self._rms(ch1) + self._rms(ch3)) / 2
         for lst, val in (
             (self._energy_left,  left),
             (self._energy_right, right),

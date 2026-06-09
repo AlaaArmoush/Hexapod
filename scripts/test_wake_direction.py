@@ -50,6 +50,8 @@ def main() -> None:
         from bridge.serial_robot_bridge import SerialRobotBridge
         bridge = SerialRobotBridge(port=args.port, baudrate=args.baudrate)
         bridge.connect()
+        time.sleep(2.0)                       # let ESP32 finish booting
+        bridge._serial.reset_input_buffer()   # discard boot garbage
         print(f"[test] connected to ESP32 on {args.port}", file=sys.stderr)
         # Verify serial comms with a ping
         from bridge.robot_commands import build_ping
