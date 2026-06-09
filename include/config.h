@@ -14,8 +14,8 @@
 // Smooth loop tuning
 #define LOOP_INTERP_STEP 1 // degrees per update
 #define LOOP_UPDATE_MS 5  // update interval
-#define LOOP_HOLD_MS 40   // hold after reaching each phase
-#define ROTATE_LOOP_UPDATE_MS 5 // rotate update interval; higher = slower turn
+#define LOOP_HOLD_MS 27   // hold after reaching each phase
+#define ROTATE_LOOP_UPDATE_MS 4 // rotate update interval; higher = slower turn
 
 // Command-driven firmware
 #define AUTO_STAND_ON_BOOT    0
@@ -72,8 +72,8 @@
 #define CAMERA_PAN_CENTER_DEG           90
 #define CAMERA_PAN_FRONT_RIGHT_DEG      60
 #define CAMERA_PAN_RIGHT_DEG            40
-#define CAMERA_SERVO_SLEW_DEG_PER_UPDATE 2
-#define CAMERA_SERVO_UPDATE_MS          20UL
+#define CAMERA_SERVO_SLEW_DEG_PER_UPDATE 5
+#define CAMERA_SERVO_UPDATE_MS          10UL
 
 // Sit pose targets copied from the sitting branch global sit() function.
 #define SIT_FEMUR_DELTA   75
