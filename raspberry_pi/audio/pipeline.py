@@ -124,13 +124,22 @@ def _build_agent_fn(args: argparse.Namespace) -> Callable[[str], str]:
     def tool_executor(tool_requests, user_input=""):
         return execute_tools(tool_requests, robot_executor=robot_executor, enable_robot=True)
 
+    def face_executor(face_name: str) -> None:
+        try:
+            robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
+        except Exception:
+            pass
+
     client = LlamaClient(base_url=args.base_url, timeout=args.timeout)
     loop = AgentLoop(
         llama_client=client,
         tool_executor=tool_executor,
         system_prompt=SYSTEM_PROMPT,
+        face_executor=face_executor,
     )
+
     def agent_fn(text: str) -> str:
+        face_executor("thinking")
         result = loop.run_once(text)
         parts = [result["speak"]] if result.get("speak") else []
         for tr in result.get("tool_results", []):
