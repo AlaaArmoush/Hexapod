@@ -4,7 +4,7 @@ from pathlib import Path
 # Playback: card 0, device 0 (MAX98357A amp)
 # Capture:  card 0, device 1 (4x INMP441 DMIC)
 PLAYBACK_DEVICE = "plughw:0,0"
-CAPTURE_DEVICE_INDEX = 1    # sounddevice index — same as wake_word AUDIO_DEVICE=1
+CAPTURE_DEVICE = "plughw:0,1"   # ALSA: hexapod card 0, device 1 (4x INMP441 DMIC)
 
 CAPTURE_RATE = 48000
 CAPTURE_CHANNELS = 4
