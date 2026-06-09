@@ -22,10 +22,10 @@ MOONSHINE_MODEL_PATH = (
 
 # TTS — Piper
 # Download voice: python -m piper.download_voices en_US-lessac-medium --data-dir assets/voices
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 VOICES_DIR = _REPO_ROOT / "assets" / "voices"
-VOICE_ONNX = VOICES_DIR / "en_US-lessac-medium.onnx"
-VOICE_JSON = VOICES_DIR / "en_US-lessac-medium.onnx.json"
+VOICE_ONNX = VOICES_DIR / "en_US-ryan-high.onnx"
+VOICE_JSON = VOICES_DIR / "en_US-ryan-high.onnx.json"
 TTS_LENGTH_SCALE = None     # None = use voice default; higher = slower
 
 # Canned lines — pre-rendered WAVs for zero-latency playback
