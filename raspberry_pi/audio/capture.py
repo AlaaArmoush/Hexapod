@@ -1,8 +1,6 @@
 """
 AudioCapture — reads 4-ch 48 kHz audio from the hexapod DMIC via arecord,
 downsamples channel 0 to mono 16 kHz, and feeds float32 chunks to a callback.
-Uses arecord because PortAudio/sounddevice doesn't enumerate the I2S DMIC.
-Manages GPIO17 (mic power) and GPIO27 (amp SD).
 
 Two-thread design: _reader pulls bytes from arecord stdout as fast as possible;
 _worker converts/resamples and calls on_chunk.  This prevents arecord buffer
