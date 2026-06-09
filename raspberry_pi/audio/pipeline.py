@@ -134,8 +134,9 @@ def _build_agent_fn(args: argparse.Namespace) -> Callable[[str], str]:
         result = loop.run_once(text)
         parts = [result["speak"]] if result.get("speak") else []
         for tr in result.get("tool_results", []):
-            if tr.get("ok") and tr.get("spoken_text"):
-                parts.append(tr["spoken_text"])
+            spoken = tr.get("spoken_text")
+            if spoken and tr.get("name") != "robot_command":
+                parts.append(spoken)
         return " ".join(parts)
 
     return agent_fn
