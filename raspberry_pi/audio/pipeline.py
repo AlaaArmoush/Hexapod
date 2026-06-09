@@ -175,16 +175,20 @@ def _build_agent_fn(
               f"error={result.get('error')!r}", file=sys.stderr)
         for tr in result.get("tool_results", []):
             print(f"[agent] tool={tr.get('name')} ok={tr.get('ok')} "
-                  f"error={tr.get('error')!r} data={tr.get('data')}", file=sys.stderr)
-        # Fast-intent commands (stand, sit, wave …) have no LLM round-trip;
-        # skip TTS so the robot moves without any audio delay.
-        if result.get("timings", {}).get("plan_source") == "fast_robot":
-            return ""
-        parts = [result["speak"]] if result.get("speak") else []
+                  f"error={tr.get('error')!r} spoken={tr.get('spoken_text')!r} data={tr.get('data')}", file=sys.stderr)
+        parts: list[str] = []
         for tr in result.get("tool_results", []):
             spoken = tr.get("spoken_text")
             if spoken and tr.get("name") != "robot_command":
                 parts.append(spoken)
+
+        # Robot motion commands skip TTS to keep latency low.
+        # Info tools (time, battery, etc.) still need their spoken result.
+        if result.get("timings", {}).get("plan_source") == "fast_robot":
+            return " ".join(parts)
+
+        if result.get("speak"):
+            parts.insert(0, result["speak"])
         return " ".join(parts)
 
     return agent_fn, face_executor
