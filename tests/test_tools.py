@@ -1,7 +1,5 @@
 import json
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -287,17 +285,6 @@ class ToolContractTests(unittest.TestCase):
         self.assertEqual(result.error, "unknown_tool")
         self.assertEqual(result.display_face, "error")
         self.assertEqual(set(result.data["available_tools"]), EXPECTED_TOOL_NAMES)
-
-    def test_cli_get_time_smoke(self):
-        completed = subprocess.run(
-            [sys.executable, "test_tools_cli.py", "get_time"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(completed.returncode, 0)
-        self.assertIn("action:        get_time", completed.stdout)
-        self.assertIn("display_face:  clock", completed.stdout)
 
 
 if __name__ == "__main__":

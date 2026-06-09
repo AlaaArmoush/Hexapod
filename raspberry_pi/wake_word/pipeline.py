@@ -15,9 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
+from bridge.robot_commands import build_camera_pan
 from .detector import WakeWordDetector
 from .direction import RealDirectionEstimator
-from .servo_response import respond_to_direction
 
 WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 WAKEWORD_THRESHOLD = 0.3
@@ -58,7 +58,7 @@ class WakeWordPipeline:
     def _pan(self) -> None:
         self._state = _State.PANNING
         print(f"[pipeline] direction={self._pending_direction!r} → sending camera_pan", file=sys.stderr)
-        respond_to_direction(self._pending_direction, self._bridge)
+        self._bridge.send_command(build_camera_pan(pos=self._pending_direction))
         self._direction_est.reset()
         self._state = _State.LISTENING
         print("[pipeline] back to LISTENING", file=sys.stderr)

@@ -35,6 +35,7 @@ CANNED_LINES: dict[str, str] = {
     "boot_ready": "Ready.",
     "wake_ack":   "Yes?",
     "listening":  "I'm listening.",
+    "okay":       "Okay.",
     "on_it":      "On it.",
     "one_sec":    "Just a second.",
     "thinking":   "Let me think.",
