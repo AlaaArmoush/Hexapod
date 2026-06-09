@@ -50,6 +50,7 @@ class AudioCapture:
                 "-f", "S32_LE",
                 "-r", str(config.CAPTURE_RATE),
                 "-c", str(config.CAPTURE_CHANNELS),
+                "--file-type", "raw",
                 "-",   # write raw PCM to stdout
             ],
             stdout=subprocess.PIPE,

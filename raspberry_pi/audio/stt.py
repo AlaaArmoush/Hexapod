@@ -23,9 +23,12 @@ class MoonshineSTT:
         from moonshine_voice import Transcriber, TranscriptEventListener, ModelArch
 
         class _Listener(TranscriptEventListener):
+            def on_line_text_changed(self_, event) -> None:
+                print(f"[stt] partial: {event.line.text!r}", file=sys.stderr, end="\r")
+
             def on_line_completed(self_, event) -> None:
                 text = event.line.text.strip()
-                print(f"[stt] transcript: {text!r}", file=sys.stderr)
+                print(f"\n[stt] final: {text!r}", file=sys.stderr)
                 if text:
                     on_final(text)
 
@@ -56,8 +59,8 @@ def run_live() -> None:
     stt = MoonshineSTT(on_final=on_final)
     cap = AudioCapture(on_chunk=stt.feed)
 
-    cap.start()
     stt.start()
+    cap.start()
     print("Listening — speak a command, Ctrl-C to quit.\n")
     try:
         while True:
