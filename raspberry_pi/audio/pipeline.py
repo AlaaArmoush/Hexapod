@@ -42,9 +42,14 @@ class VoicePipeline:
         self._running = False
         self._cap = None
         self._stt = None
+        self._spoke_at: float = 0.0   # monotonic time of last playback end
+
+    _POST_SPEAK_COOLDOWN = 1.2   # seconds to ignore transcripts after playback
 
     def _on_transcript(self, text: str) -> None:
         if self._state == _State.LISTENING:
+            if time.monotonic() - self._spoke_at < self._POST_SPEAK_COOLDOWN:
+                return  # room echo of canned/TTS audio still in Moonshine's buffer
             self._state = _State.THINKING
             self._queue.put_nowait(text)
 
@@ -57,6 +62,7 @@ class VoicePipeline:
         self._state = _State.SPEAKING
         print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
         self._tts.say(response)
+        self._spoke_at = time.monotonic()
         self._state = _State.LISTENING
         print("[pipeline] back to LISTENING", file=sys.stderr)
 
