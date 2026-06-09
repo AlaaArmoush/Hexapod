@@ -19,3 +19,29 @@ MOONSHINE_MODEL_PATH = (
     / "download.moonshine.ai" / "model"
     / MOONSHINE_MODEL_NAME / "quantized"
 )
+
+# TTS — Piper
+# Download voice: python -m piper.download_voices en_US-lessac-medium --data-dir assets/voices
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+VOICES_DIR = _REPO_ROOT / "assets" / "voices"
+VOICE_ONNX = VOICES_DIR / "en_US-ryan-high.onnx"
+VOICE_JSON = VOICES_DIR / "en_US-ryan-high.onnx.json"
+TTS_LENGTH_SCALE = None     # None = use voice default; higher = slower
+
+# Canned lines — pre-rendered WAVs for zero-latency playback
+# Generate: python scripts/generate_canned_lines.py
+CANNED_DIR = _REPO_ROOT / "assets" / "canned"
+CANNED_LINES: dict[str, str] = {
+    "boot_ready": "Ready.",
+    "wake_ack":   "Yes?",
+    "listening":  "I'm listening.",
+    "on_it":      "On it.",
+    "one_sec":    "Just a second.",
+    "thinking":   "Let me think.",
+    "working":    "Working on it.",
+    "done":       "Done.",
+    "not_caught": "Sorry, I didn't catch that.",
+    "cant_do":    "I can't do that.",
+    "error":      "Something went wrong.",
+    "goodbye":    "Goodbye.",
+}
