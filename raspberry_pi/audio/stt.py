@@ -19,9 +19,8 @@ from . import config
 
 
 class MoonshineSTT:
-    def __init__(self, on_final: Callable[[str], None],
-                 model_name: str = config.MOONSHINE_MODEL_NAME) -> None:
-        from moonshine_voice import Transcriber, TranscriptEventListener, ModelArch, get_model_path
+    def __init__(self, on_final: Callable[[str], None]) -> None:
+        from moonshine_voice import Transcriber, TranscriptEventListener, ModelArch
 
         class _Listener(TranscriptEventListener):
             def on_line_completed(self_, event) -> None:
@@ -30,9 +29,10 @@ class MoonshineSTT:
                 if text:
                     on_final(text)
 
-        model_path = get_model_path(model_name)
-        arch = ModelArch.BASE if "base" in model_name else ModelArch.TINY
-        self._t = Transcriber(model_path=str(model_path), model_arch=arch)
+        self._t = Transcriber(
+            model_path=str(config.MOONSHINE_MODEL_PATH),
+            model_arch=ModelArch(config.MOONSHINE_MODEL_ARCH),
+        )
         self._t.add_listener(_Listener())
 
     def start(self) -> None:
@@ -52,7 +52,7 @@ def run_live() -> None:
     def on_final(text: str) -> None:
         print(f"\n>>> {text}\n")
 
-    print(f"Loading Moonshine model '{config.MOONSHINE_MODEL_NAME}' …")
+    print(f"Loading Moonshine model '{config.MOONSHINE_MODEL_NAME}' from {config.MOONSHINE_MODEL_PATH} …")
     stt = MoonshineSTT(on_final=on_final)
     cap = AudioCapture(on_chunk=stt.feed)
 
