@@ -47,6 +47,13 @@ class VoicePipeline:
 
     _POST_SPEAK_COOLDOWN = 1.2
 
+    def _is_fast_intent(self, text: str) -> bool:
+        try:
+            from agent.fast_robot_intent import build_fast_robot_plan
+            return build_fast_robot_plan(text) is not None
+        except ImportError:
+            return False
+
     def _face(self, name: str) -> None:
         if self._face_fn is not None:
             try:
@@ -64,7 +71,8 @@ class VoicePipeline:
     def _process_transcript(self, text: str) -> None:
         """THINKING → SPEAKING → LISTENING for one transcript."""
         print(f"[pipeline] THINKING: {text!r}", file=sys.stderr)
-        self._face("thinking")
+        if not self._is_fast_intent(text):
+            self._face("thinking")
         response = self._agent_fn(text) if self._agent_fn else text
         self._state = _State.SPEAKING
         if response:
