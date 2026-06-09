@@ -32,6 +32,7 @@ class WakeWordDetector:
         on_wakeword: WakeCallback,
         threshold: float = WAKEWORD_THRESHOLD,
         device: int | None = None,
+        debug: bool = False,
     ) -> None:
         from openwakeword.model import Model
 
@@ -39,9 +40,11 @@ class WakeWordDetector:
         self._on_wakeword = on_wakeword
         self._threshold = threshold
         self._device = device
+        self._debug = debug
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
         self._buffer = np.array([], dtype=np.int16)
+        self._peak: float = 0.0
 
     def _audio_callback(self, indata: np.ndarray, _frames: int, _time_info: object, status: object) -> None:
         if status:
@@ -57,8 +60,12 @@ class WakeWordDetector:
                 self._process_chunk(chunk)
 
     def _process_chunk(self, chunk: np.ndarray) -> None:
+        import sys
         scores = self._model.predict(chunk)
         for model_name, score in scores.items():
+            if self._debug and score > self._peak:
+                self._peak = score
+                print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
             if score >= self._threshold:
                 self._on_wakeword(model_name, float(score))
 
