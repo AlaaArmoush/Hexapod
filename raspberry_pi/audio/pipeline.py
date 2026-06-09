@@ -170,6 +170,12 @@ def _build_agent_fn(
 
     def agent_fn(text: str) -> str:
         result = loop.run_once(text)
+        print(f"[agent] result ok={result.get('ok')} kind={result.get('kind')} "
+              f"plan_source={result.get('timings',{}).get('plan_source')} "
+              f"error={result.get('error')!r}", file=sys.stderr)
+        for tr in result.get("tool_results", []):
+            print(f"[agent] tool={tr.get('name')} ok={tr.get('ok')} "
+                  f"error={tr.get('error')!r} data={tr.get('data')}", file=sys.stderr)
         # Fast-intent commands (stand, sit, wave …) have no LLM round-trip;
         # skip TTS so the robot moves without any audio delay.
         if result.get("timings", {}).get("plan_source") == "fast_robot":
