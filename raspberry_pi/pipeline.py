@@ -271,6 +271,10 @@ class VoicePipeline:
             self._stt.stop()
             self._stt = None
         self._stop_detector()
+        if self._tracker is not None:
+            self._tracker.stop()
+            self._tracker.provider.stop()
+            self._tracker = None
         self._state = _State.IDLE
 
 

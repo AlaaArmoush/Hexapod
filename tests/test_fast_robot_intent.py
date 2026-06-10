@@ -11,7 +11,7 @@ def test_step_forward_maps_to_one_step_gait():
     assert command_for("step forward a bit") == {
         "cmd": "gait",
         "dir": "forward",
-        "speed": 0.03,
+        "speed": 0.06,
         "steps": 1,
     }
 
@@ -24,7 +24,7 @@ def test_diagonal_direction_is_not_reduced_to_forward():
     assert command_for("take two steps forward left") == {
         "cmd": "gait",
         "dir": "forward_left",
-        "speed": 0.03,
+        "speed": 0.06,
         "steps": 2,
     }
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import queue
 import unittest
 
-from raspberry_pi.audio.pipeline import VoicePipeline, _State
+from raspberry_pi.pipeline import VoicePipeline, _State
 
 
 class _MockCanned:
@@ -108,7 +108,7 @@ class TestVoicePipelineStateMachine(unittest.TestCase):
         p._state = _State.LISTENING
         p._on_transcript("queued phrase")
         self.assertFalse(p._queue.empty())
-        self.assertEqual(p._queue.get_nowait(), "queued phrase")
+        self.assertEqual(p._queue.get_nowait(), ("transcript", "queued phrase"))
         self.assertEqual(p._state, _State.THINKING)
 
     def test_on_transcript_transitions_to_thinking(self):
