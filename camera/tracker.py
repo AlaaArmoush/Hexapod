@@ -26,8 +26,8 @@ class PersonTracker:
     EMA_ALPHA = 0.4
 
     def __init__(self, provider, detector, *, fps: int = 5) -> None:
-        self._provider = provider
-        self._detector = detector
+        self.provider = provider
+        self.detector = detector
         self._interval = 1.0 / fps
         self._lock = threading.Lock()
         self._target: TrackedPerson | None = None
@@ -75,8 +75,8 @@ class PersonTracker:
 
     def _tick(self) -> None:
         now_ms = int(time.time() * 1000)
-        frame = self._provider.grab_frame()
-        result = self._detector.detect(frame, target_label="person") if frame is not None else None
+        frame = self.provider.grab_frame()
+        result = self.detector.detect(frame, target_label="person") if frame is not None else None
 
         if result is None or not result.detected:
             with self._lock:
