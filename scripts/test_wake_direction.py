@@ -97,8 +97,10 @@ def main() -> None:
                     try:
                         print(f"[test] sending: {cmd}", file=sys.stderr)
                         bridge.send_command(cmd)
+                        resp = bridge.wait_for_ok(cmd=cmd["cmd"], timeout=8.0)
+                        print(f"[test] ok: {resp['raw']}", file=sys.stderr)
                     except Exception as exc:
-                        print(f"[test] send failed: {exc}", file=sys.stderr)
+                        print(f"[test] error: {exc}", file=sys.stderr)
 
     except KeyboardInterrupt:
         print("\n[test] stopping", file=sys.stderr)

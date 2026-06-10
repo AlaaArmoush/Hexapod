@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 # Electrical channel mapping (fixed — only physical labels change if mics are remounted):
@@ -33,34 +35,37 @@ class DirectionEstimator:
 
 class RealDirectionEstimator(DirectionEstimator):
     """
-    Accumulates per-channel energy across audio chunks (same approach as
-    test_mic_energy.py), then on estimate() finds the leading mic and maps
-    it to a direction string.
+    Rolling window (≈1.4 s) of per-channel energy — same approach as
+    test_mic_energy.py.  Using a deque capped at window_chunks means estimate()
+    always reflects recent audio rather than the entire session since last reset,
+    so a brief "Hey Heksah" utterance isn't drowned out by ambient noise.
     """
 
-    def __init__(self, min_advantage_db: float = _MIN_ADVANTAGE_DB) -> None:
+    def __init__(
+        self,
+        min_advantage_db: float = _MIN_ADVANTAGE_DB,
+        window_chunks: int = 18,  # 18 × 80 ms ≈ 1.44 s at 48 kHz / 3840-frame chunks
+    ) -> None:
         self._min_advantage_db = min_advantage_db
-        self._energy = np.zeros(4, dtype=np.float64)
-        self._sample_count = 0
+        self._chunks: deque[tuple[np.ndarray, int]] = deque(maxlen=window_chunks)
 
     def update(self, multichannel_chunk: np.ndarray) -> None:
-        """Accumulate squared energy from a 4-channel float32 chunk (shape: [frames, 4])."""
         x = multichannel_chunk[:, :4].astype(np.float64)
-        self._energy += np.sum(x * x, axis=0)
-        self._sample_count += x.shape[0]
+        self._chunks.append((np.sum(x * x, axis=0), x.shape[0]))
 
     def estimate(self) -> str:
-        if self._sample_count == 0:
+        if not self._chunks:
             return "center"
 
-        rms = np.sqrt(self._energy / self._sample_count)
+        total_energy = sum(e for e, _ in self._chunks)
+        total_samples = sum(n for _, n in self._chunks)
+
+        rms = np.sqrt(total_energy / total_samples)
         db = 20.0 * np.log10(np.maximum(rms, _EPS))
 
         leader = int(np.argmax(db))
         sorted_db = np.sort(db)
-        advantage_db = sorted_db[-1] - sorted_db[-2]
-
-        if advantage_db < self._min_advantage_db:
+        if sorted_db[-1] - sorted_db[-2] < self._min_advantage_db:
             return "center"
 
         direction = _LEADER_TO_DIRECTION[leader]
@@ -71,5 +76,4 @@ class RealDirectionEstimator(DirectionEstimator):
         return direction
 
     def reset(self) -> None:
-        self._energy[:] = 0.0
-        self._sample_count = 0
+        self._chunks.clear()
