@@ -48,7 +48,9 @@ def main() -> None:
         bridge = SerialRobotBridge(port=args.port, baudrate=args.baudrate)
         bridge.connect()
         time.sleep(3.0)  # wait for ESP32 to finish booting
-        bridge._serial.reset_input_buffer()
+        while bridge._serial.in_waiting:  # drain boot messages without toggling DTR
+            bridge._serial.read(bridge._serial.in_waiting)
+            time.sleep(0.05)
         print(f"[test] connected to {args.port}", file=sys.stderr)
     else:
         print("[test] dry-run mode", file=sys.stderr)

@@ -2,6 +2,23 @@ from __future__ import annotations
 
 import numpy as np
 
+# Electrical channel mapping (fixed — only physical labels change if mics are remounted):
+# CH0 = GPIO20/pin38, L/R -> GND
+# CH1 = GPIO20/pin38, L/R -> 3.3V
+# CH2 = GPIO22/pin15, L/R -> GND
+# CH3 = GPIO22/pin15, L/R -> 3.3V
+
+# Physical direction per leading channel (verify with scripts/test_mic_energy.py):
+_LEADER_TO_DIRECTION = {
+    0: "front_left",   # CH0: pin38/GND
+    1: "back_left",    # CH1: pin38/3V3
+    2: "front_right",  # CH2: pin15/GND
+    3: "back_right",   # CH3: pin15/3V3
+}
+
+_MIN_ADVANTAGE_DB = 3.0   # dB above runner-up to commit to a direction
+_EPS = 1e-12
+
 
 class DirectionEstimator:
     def estimate(self) -> str:
@@ -16,79 +33,43 @@ class DirectionEstimator:
 
 class RealDirectionEstimator(DirectionEstimator):
     """
-    Uses per-channel RMS energy to estimate horizontal + front/back direction.
-
-    Physical mic layout (4x INMP441):
-        FRONT
-        CH1 (3V3) ●    ● CH3 (3V3)
-        CH0 (GND) ●    ● CH2 (GND)
-        BACK
-
-    Left  = CH2 + CH3,  Right = CH0 + CH1
-    Front = CH0 + CH2,  Back  = CH1 + CH3
-
-    Returns one of: "left", "front_left", "front", "front_right", "right", "back", "center"
+    Accumulates per-channel energy across audio chunks (same approach as
+    test_mic_energy.py), then on estimate() finds the leading mic and maps
+    it to a direction string.
     """
 
-    def __init__(self, min_advantage_db: float = 3.0, history: int = 5) -> None:
+    def __init__(self, min_advantage_db: float = _MIN_ADVANTAGE_DB) -> None:
         self._min_advantage_db = min_advantage_db
-        self._history = history
-        self._energy_left: list[float] = []
-        self._energy_right: list[float] = []
-        self._energy_front: list[float] = []
-        self._energy_back: list[float] = []
-
-    def _rms(self, signal: np.ndarray) -> float:
-        return float(np.sqrt(np.mean(signal.astype(np.float64) ** 2)) + 1e-10)
+        self._energy = np.zeros(4, dtype=np.float64)
+        self._sample_count = 0
 
     def update(self, multichannel_chunk: np.ndarray) -> None:
-        """Accumulate energy from a 4-channel chunk (shape: [frames, 4])."""
-        ch0, ch1, ch2, ch3 = (multichannel_chunk[:, i] for i in range(4))
-        left  = (self._rms(ch2) + self._rms(ch3)) / 2
-        right = (self._rms(ch0) + self._rms(ch1)) / 2
-        front = (self._rms(ch0) + self._rms(ch2)) / 2
-        back  = (self._rms(ch1) + self._rms(ch3)) / 2
-        for lst, val in (
-            (self._energy_left,  left),
-            (self._energy_right, right),
-            (self._energy_front, front),
-            (self._energy_back,  back),
-        ):
-            lst.append(val)
-            if len(lst) > self._history:
-                lst.pop(0)
+        """Accumulate squared energy from a 4-channel float32 chunk (shape: [frames, 4])."""
+        x = multichannel_chunk[:, :4].astype(np.float64)
+        self._energy += np.sum(x * x, axis=0)
+        self._sample_count += x.shape[0]
 
     def estimate(self) -> str:
-        """Return direction string based on accumulated energy."""
-        if not self._energy_left:
+        if self._sample_count == 0:
             return "center"
 
-        def avg(lst: list[float]) -> float:
-            return sum(lst) / len(lst)
+        rms = np.sqrt(self._energy / self._sample_count)
+        db = 20.0 * np.log10(np.maximum(rms, _EPS))
 
-        def db(a: float, b: float) -> float:
-            return 20 * float(np.log10((a + 1e-10) / (b + 1e-10)))
+        leader = int(np.argmax(db))
+        sorted_db = np.sort(db)
+        advantage_db = sorted_db[-1] - sorted_db[-2]
 
-        lr_db = db(avg(self._energy_left), avg(self._energy_right))
-        fb_db = db(avg(self._energy_front), avg(self._energy_back))
+        if advantage_db < self._min_advantage_db:
+            return "center"
 
-        is_left  = lr_db >  self._min_advantage_db
-        is_right = lr_db < -self._min_advantage_db
-        is_front = fb_db >  self._min_advantage_db
-        is_back  = fb_db < -self._min_advantage_db
+        direction = _LEADER_TO_DIRECTION[leader]
 
-        if is_back:
+        # Collapse back_left / back_right → "back" (body rotate either way)
+        if direction in ("back_left", "back_right"):
             return "back"
-        if is_front:
-            if is_left:  return "front_left"
-            if is_right: return "front_right"
-            return "front"
-        if is_left:  return "left"
-        if is_right: return "right"
-        return "center"
+        return direction
 
     def reset(self) -> None:
-        self._energy_left.clear()
-        self._energy_right.clear()
-        self._energy_front.clear()
-        self._energy_back.clear()
+        self._energy[:] = 0.0
+        self._sample_count = 0
