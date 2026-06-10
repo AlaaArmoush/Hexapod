@@ -9,7 +9,7 @@ CAPTURE_DEVICE = "plughw:0,1"   # ALSA: hexapod card 0, device 1 (4x INMP441 DMI
 CAPTURE_RATE = 48000
 CAPTURE_CHANNELS = 4
 STT_SAMPLE_RATE = 16000     # Moonshine native rate
-MIC_GAIN = 10.0             # software gain for INMP441 DMIC (adjust if too loud/quiet)
+MIC_GAIN = 12.0             # software gain for INMP441 DMIC (adjust if too loud/quiet)
 
 # STT — moonshine-voice
 # Downloaded via: python -m moonshine_voice.download --language en --stt

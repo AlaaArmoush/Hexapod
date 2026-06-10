@@ -160,6 +160,7 @@ def _normalize(user_input: str) -> str:
     text = user_input.lower().strip()
     text = re.sub(r"[^a-z0-9_ .-]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"[.,!?]+$", "", text).strip()
     return text
 
 
@@ -178,7 +179,7 @@ def _stop_command(text: str) -> dict[str, Any] | None:
 def _posture_command(text: str) -> dict[str, Any] | None:
     if text in {"stand", "stand up", "get up"}:
         return {"cmd": "stand"}
-    if text in {"sit", "sit down"}:
+    if text in {"sit", "sit down", "rest"}:
         return {"cmd": "sit"}
     if _contains_phrase(text, "wave"):
         leg = "LF" if "left" in text.split() else "RF"
