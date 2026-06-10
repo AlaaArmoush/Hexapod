@@ -5,17 +5,16 @@ from collections import deque
 import numpy as np
 
 # Electrical channel mapping (fixed — only physical labels change if mics are remounted):
-# CH0 = GPIO20/pin38, L/R -> GND
-# CH1 = GPIO20/pin38, L/R -> 3.3V
-# CH2 = GPIO22/pin15, L/R -> GND
-# CH3 = GPIO22/pin15, L/R -> 3.3V
+# CH0 = GPIO22/pin15, L/R -> GND  → FRONT
+# CH1 = GPIO22/pin15, L/R -> 3.3V → RIGHT
+# CH2 = GPIO20/pin38, L/R -> GND  → LEFT
+# CH3 = GPIO20/pin38, L/R -> 3.3V → BACK
 
-# Physical direction per leading channel (verify with scripts/test_mic_energy.py):
 _LEADER_TO_DIRECTION = {
-    0: "front_left",   # CH0: pin38/GND
-    1: "back_left",    # CH1: pin38/3V3
-    2: "front_right",  # CH2: pin15/GND
-    3: "back_right",   # CH3: pin15/3V3
+    0: "front",  # CH0: pin15/GND
+    1: "right",  # CH1: pin15/3V3
+    2: "left",   # CH2: pin38/GND
+    3: "back",   # CH3: pin38/3V3
 }
 
 _MIN_ADVANTAGE_DB = 3.0   # dB above runner-up to commit to a direction
@@ -68,12 +67,7 @@ class RealDirectionEstimator(DirectionEstimator):
         if sorted_db[-1] - sorted_db[-2] < self._min_advantage_db:
             return "center"
 
-        direction = _LEADER_TO_DIRECTION[leader]
-
-        # Collapse back_left / back_right → "back" (body rotate either way)
-        if direction in ("back_left", "back_right"):
-            return "back"
-        return direction
+        return _LEADER_TO_DIRECTION[leader]
 
     def reset(self) -> None:
         self._chunks.clear()
