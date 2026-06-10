@@ -5,10 +5,10 @@ States (no wake word): IDLE → LISTENING → THINKING → SPEAKING → LISTENIN
 States (wake word):    IDLE → WAKE_LISTENING → LISTENING → THINKING → SPEAKING → WAKE_LISTENING
 
 Usage:
-    python -m raspberry_pi.audio.pipeline                              # llama-server on localhost:8080
-    python -m raspberry_pi.audio.pipeline --wake-word                  # require "Hey Heksah" first
-    python -m raspberry_pi.audio.pipeline --enable-robot --port /dev/ttyUSB0
-    python -m raspberry_pi.audio.pipeline --base-url http://HOST:8080
+    python -m raspberry_pi.pipeline                              # llama-server on localhost:8080
+    python -m raspberry_pi.pipeline --wake-word                  # require "Hey Heksah" first
+    python -m raspberry_pi.pipeline --enable-robot --port /dev/ttyUSB0
+    python -m raspberry_pi.pipeline --base-url http://HOST:8080
 """
 from __future__ import annotations
 
@@ -84,8 +84,8 @@ class VoicePipeline:
             self._queue.put_nowait(("transcript", text))
 
     def _start_stt(self) -> None:
-        from .capture import AudioCapture
-        from .stt import MoonshineSTT
+        from .audio.capture import AudioCapture
+        from .audio.stt import MoonshineSTT
         self._stt = MoonshineSTT(on_final=self._on_transcript)
         self._cap = AudioCapture(on_chunk=self._stt.feed)
         self._stt.start()
@@ -100,7 +100,7 @@ class VoicePipeline:
             self._cap = None
 
     def _start_detector(self) -> None:
-        from .scripts.audio_mode import listen as _audio_listen
+        from .audio.scripts.audio_mode import listen as _audio_listen
         from raspberry_pi.wake_word.pipeline import WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
         from raspberry_pi.wake_word.detector import WakeWordDetector
         _audio_listen()
@@ -166,9 +166,9 @@ class VoicePipeline:
             print("[pipeline] back to LISTENING", file=sys.stderr)
 
     def start(self) -> None:
-        from .canned import CannedLines
-        from .tts import PiperTTS
-        from .playback import AudioPlayer
+        from .audio.canned import CannedLines
+        from .audio.tts import PiperTTS
+        from .audio.playback import AudioPlayer
 
         if self._canned is None:
             player = AudioPlayer()
