@@ -42,7 +42,7 @@ class AgentLoop:
         summarizer_max_tokens: int | None = 80,
         json_response_format: bool = False,
         fast_robot_shortcuts: bool = True,
-        face_executor: Callable[[str], None] | None = None,
+        face_executor: Callable[[str, str | None], None] | None = None,
     ):
         self.llama_client = llama_client
         self.tool_executor = tool_executor
@@ -182,7 +182,11 @@ class AgentLoop:
             )
             if not robot_command_sent:
                 try:
-                    self.face_executor(validated.face)
+                    display_text = next(
+                        (r["display_text"] for r in tool_results if r.get("display_text")),
+                        None,
+                    )
+                    self.face_executor(validated.face, display_text)
                 except Exception:
                     pass
 
