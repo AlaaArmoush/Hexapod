@@ -4,6 +4,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -100,10 +101,11 @@ class WakeWordDetector:
                     self._on_wakeword(model_name, float(score), direction)
 
     def start(self) -> None:
+        time.sleep(0.1)  # let GPIO settle after audio_listen()
         self._proc = subprocess.Popen(
             ["arecord", "-D", _ALSA_DEVICE, "-f", "S32_LE", "-r", str(SAMPLE_RATE_HW), "-c", str(CHANNELS_PI), "-"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=None,  # inherit stderr so arecord errors are visible
         )
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader, daemon=True)
