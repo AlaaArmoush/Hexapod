@@ -85,16 +85,12 @@ class VoicePipeline:
 
     def _start_stt(self) -> None:
         from .audio.capture import AudioCapture
-        from .audio.stt import MoonshineSTT
-        self._stt = MoonshineSTT(on_final=self._on_transcript)
         self._cap = AudioCapture(on_chunk=self._stt.feed)
-        self._stt.start()
         self._cap.start()
+        self._stt.resume()
 
     def _stop_stt(self) -> None:
-        if self._stt is not None:
-            self._stt.stop()
-            self._stt = None
+        self._stt.pause()
         if self._cap is not None:
             self._cap.stop()
             self._cap = None
@@ -176,6 +172,11 @@ class VoicePipeline:
             self._canned.load()
         if self._tts is None:
             self._tts = PiperTTS()
+        if self._stt is None:
+            from .audio.stt import MoonshineSTT
+            self._stt = MoonshineSTT(on_final=self._on_transcript)
+            self._stt.start()
+            self._stt.pause()
 
         self._running = True
 
@@ -208,6 +209,9 @@ class VoicePipeline:
     def stop(self) -> None:
         self._running = False
         self._stop_stt()
+        if self._stt is not None:
+            self._stt.stop()
+            self._stt = None
         self._stop_detector()
         self._state = _State.IDLE
 
