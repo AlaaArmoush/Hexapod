@@ -233,8 +233,13 @@ def _build_agent_fn(
     def tool_executor(tool_requests, user_input=""):
         return execute_tools(tool_requests, robot_executor=robot_executor, enable_robot=True, user_input=user_input)
 
+    _PERSISTENT_FACES = {"listening", "idle", "thinking", "walking", "rotating", "waving", "system"}
+
     def face_executor(face_name: str) -> None:
-        robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
+        if face_name in _PERSISTENT_FACES:
+            robot_executor.execute_command({"cmd": "face", "name": face_name, "persistent": True})
+        else:
+            robot_executor.execute_command({"cmd": "face", "name": face_name, "duration_ms": 3000})
 
     def cmd_executor(cmd: dict) -> None:
         robot_executor.execute_command(cmd)
