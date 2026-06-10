@@ -1,9 +1,6 @@
 """
 Standalone test: wake word + direction detection + camera pan / body rotate.
 
-Detects "Hey Heksah", prints the estimated direction, and sends the
-corresponding command to the ESP32 (or dry-runs it without --port).
-
 Usage:
     python scripts/test_wake_direction.py                        # dry-run, no robot
     python scripts/test_wake_direction.py --port /dev/ttyUSB0   # real hardware
@@ -50,20 +47,14 @@ def main() -> None:
         from bridge.serial_robot_bridge import SerialRobotBridge
         bridge = SerialRobotBridge(port=args.port, baudrate=args.baudrate)
         bridge.connect()
-        time.sleep(2.0)                       # let ESP32 finish booting
-        bridge._serial.reset_input_buffer()   # discard boot garbage
-        print(f"[test] connected to ESP32 on {args.port}", file=sys.stderr)
-        # Verify serial comms with a ping
-        from bridge.robot_commands import build_ping
-        bridge.send_command(build_ping())
-        response = bridge.read_line(timeout=2.0)
-        print(f"[test] ping response: {response!r}", file=sys.stderr)
+        time.sleep(3.0)  # wait for ESP32 to finish booting
+        bridge._serial.reset_input_buffer()
+        print(f"[test] connected to {args.port}", file=sys.stderr)
     else:
-        print("[test] dry-run mode — no serial port", file=sys.stderr)
+        print("[test] dry-run mode", file=sys.stderr)
 
     audio_listen()
 
-    # Queue lets the sounddevice callback stay lightweight — main thread does serial I/O
     event_queue: queue.Queue[tuple[str, float, str]] = queue.Queue()
     last_time: list[float] = [0.0]
 
@@ -92,7 +83,7 @@ def main() -> None:
                 continue
 
             cmds = direction_to_commands(direction)
-            print(f"\n[test] '{model_name}' score={score:.3f}  direction={direction!r}  "
+            print(f"\n[test] score={score:.3f}  direction={direction!r}  "
                   f"→ {[c['cmd'] + ' ' + str(c.get('pos', c.get('dir', ''))) for c in cmds]}",
                   file=sys.stderr)
 
@@ -102,9 +93,8 @@ def main() -> None:
             else:
                 for cmd in cmds:
                     try:
+                        print(f"[test] sending: {cmd}", file=sys.stderr)
                         bridge.send_command(cmd)
-                        response = bridge.read_line(timeout=2.0)
-                        print(f"[test] ESP32: {response!r}", file=sys.stderr)
                     except Exception as exc:
                         print(f"[test] send failed: {exc}", file=sys.stderr)
 
