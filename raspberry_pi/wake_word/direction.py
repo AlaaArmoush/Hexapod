@@ -1,10 +1,31 @@
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
+
+# Electrical channel mapping (fixed — only physical labels change if mics are remounted):
+# CH0 = GPIO22/pin15, L/R -> GND  → FRONT
+# CH1 = GPIO22/pin15, L/R -> 3.3V → RIGHT
+# CH2 = GPIO20/pin38, L/R -> GND  → LEFT
+# CH3 = GPIO20/pin38, L/R -> 3.3V → BACK
+
+_LEADER_TO_DIRECTION = {
+    0: "front",  # CH0: pin15/GND
+    1: "right",  # CH1: pin15/3V3
+    2: "left",   # CH2: pin38/GND
+    3: "back",   # CH3: pin38/3V3
+}
+
+_MIN_ADVANTAGE_DB = 3.0   # dB above runner-up to commit to a direction
+_EPS = 1e-12
 
 
 class DirectionEstimator:
-    def estimate(self, audio_chunk: np.ndarray) -> str:
+    def estimate(self) -> str:
+        raise NotImplementedError
+
+    def update(self, multichannel_chunk: np.ndarray) -> None:
         raise NotImplementedError
 
     def reset(self) -> None:
@@ -13,49 +34,40 @@ class DirectionEstimator:
 
 class RealDirectionEstimator(DirectionEstimator):
     """
-    Uses per-channel RMS energy to pick a horizontal direction.
-
-    Physical layout (tentative — verify on hardware):
-        FRONT
-        CH1 (3V3) ●    ● CH3 (3V3)
-        CH0 (GND) ●    ● CH2 (GND)
-        BACK
-
-    CH0/CH1 are on the left side (pin38); CH2/CH3 on the right (pin15).
+    Rolling window (≈1.4 s) of per-channel energy — same approach as
+    test_mic_energy.py.  Using a deque capped at window_chunks means estimate()
+    always reflects recent audio rather than the entire session since last reset,
+    so a brief "Hey Heksah" utterance isn't drowned out by ambient noise.
     """
 
-    def __init__(self, min_advantage_db: float = 3.0, history: int = 5) -> None:
+    def __init__(
+        self,
+        min_advantage_db: float = _MIN_ADVANTAGE_DB,
+        window_chunks: int = 18,  # 18 × 80 ms ≈ 1.44 s at 48 kHz / 3840-frame chunks
+    ) -> None:
         self._min_advantage_db = min_advantage_db
-        self._history = history
-        self._energy_left: list[float] = []
-        self._energy_right: list[float] = []
-
-    def _rms(self, signal: np.ndarray) -> float:
-        return float(np.sqrt(np.mean(signal.astype(np.float64) ** 2)) + 1e-10)
+        self._chunks: deque[tuple[np.ndarray, int]] = deque(maxlen=window_chunks)
 
     def update(self, multichannel_chunk: np.ndarray) -> None:
-        """Accumulate energy from a 4-channel chunk (shape: [frames, 4])."""
-        left = (self._rms(multichannel_chunk[:, 0]) + self._rms(multichannel_chunk[:, 1])) / 2
-        right = (self._rms(multichannel_chunk[:, 2]) + self._rms(multichannel_chunk[:, 3])) / 2
-        self._energy_left.append(left)
-        self._energy_right.append(right)
-        if len(self._energy_left) > self._history:
-            self._energy_left.pop(0)
-            self._energy_right.pop(0)
+        x = multichannel_chunk[:, :4].astype(np.float64)
+        self._chunks.append((np.sum(x * x, axis=0), x.shape[0]))
 
-    def estimate(self, audio_chunk: np.ndarray) -> str:
-        """Return 'left', 'right', or 'center' based on accumulated energy."""
-        if not self._energy_left:
+    def estimate(self) -> str:
+        if not self._chunks:
             return "center"
-        avg_left = sum(self._energy_left) / len(self._energy_left)
-        avg_right = sum(self._energy_right) / len(self._energy_right)
-        db_diff = 20 * np.log10((avg_left + 1e-10) / (avg_right + 1e-10))
-        if db_diff > self._min_advantage_db:
-            return "left"
-        if db_diff < -self._min_advantage_db:
-            return "right"
-        return "center"
+
+        total_energy = sum(e for e, _ in self._chunks)
+        total_samples = sum(n for _, n in self._chunks)
+
+        rms = np.sqrt(total_energy / total_samples)
+        db = 20.0 * np.log10(np.maximum(rms, _EPS))
+
+        leader = int(np.argmax(db))
+        sorted_db = np.sort(db)
+        if sorted_db[-1] - sorted_db[-2] < self._min_advantage_db:
+            return "center"
+
+        return _LEADER_TO_DIRECTION[leader]
 
     def reset(self) -> None:
-        self._energy_left.clear()
-        self._energy_right.clear()
+        self._chunks.clear()

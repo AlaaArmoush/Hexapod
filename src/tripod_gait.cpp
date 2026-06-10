@@ -121,8 +121,8 @@ void startTripodGait() {
 }
 
 void stopTripodGait() {
+    if (!gaitRunning) return;
     gaitRunning = false;
-    // Settle all feet back to neutral
     for (int i = 0; i < 6; i++) {
         legIK(i, 0.0f, 0.0f, 0.0f);
     }

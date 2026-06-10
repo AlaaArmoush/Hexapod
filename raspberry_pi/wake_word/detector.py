@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 from pathlib import Path
 from typing import Callable
@@ -16,14 +17,18 @@ OWW_CHUNK_FRAMES = 1280                            # ~80 ms at 16 kHz
 HW_CHUNK_FRAMES = OWW_CHUNK_FRAMES * _DOWNSAMPLE  # = 3840 frames at 48 kHz
 WAKEWORD_THRESHOLD = 0.3
 
-WakeCallback = Callable[[str, float], None]
+# ALSA string device name — works with sounddevice even when query_devices() returns nothing
+AUDIO_DEVICE = "hw:0,1"
+
+# (model_name, score, direction)
+WakeCallback = Callable[[str, float, str], None]
 
 
 class WakeWordDetector:
     """
-    Streams 4-channel 48 kHz audio from the Pi soundcard (DEVICE=1),
+    Streams 4-channel 48 kHz audio from the Pi soundcard (hw:0,1),
     downsamples CH0 to 16 kHz, and runs openwakeword frame-by-frame.
-    Calls on_wakeword(model_name, score) when confidence crosses the threshold.
+    Calls on_wakeword(model_name, score, direction) when confidence crosses the threshold.
     """
 
     def __init__(
@@ -31,7 +36,8 @@ class WakeWordDetector:
         model_path: Path,
         on_wakeword: WakeCallback,
         threshold: float = WAKEWORD_THRESHOLD,
-        device: int | None = None,
+        device: str | int | None = AUDIO_DEVICE,
+        debug: bool = False,
     ) -> None:
         from openwakeword.model import Model
 
@@ -39,15 +45,20 @@ class WakeWordDetector:
         self._on_wakeword = on_wakeword
         self._threshold = threshold
         self._device = device
+        self._debug = debug
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
         self._buffer = np.array([], dtype=np.int16)
+        self._peak: float = 0.0
+
+        from raspberry_pi.wake_word.direction import RealDirectionEstimator
+        self._direction_est = RealDirectionEstimator()
 
     def _audio_callback(self, indata: np.ndarray, _frames: int, _time_info: object, status: object) -> None:
         if status:
             print(f"[detector] audio status: {status}")
-        ch0 = indata[:, 0].copy()
-        ch0_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
+        self._direction_est.update(indata)
+        ch0_16k = resample_poly(indata[:, 0].copy(), up=1, down=_DOWNSAMPLE).astype(np.float32)
         pcm = (ch0_16k * 32767).astype(np.int16)
         with self._lock:
             self._buffer = np.concatenate([self._buffer, pcm])
@@ -59,8 +70,13 @@ class WakeWordDetector:
     def _process_chunk(self, chunk: np.ndarray) -> None:
         scores = self._model.predict(chunk)
         for model_name, score in scores.items():
+            if self._debug and score > self._peak:
+                self._peak = score
+                print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
             if score >= self._threshold:
-                self._on_wakeword(model_name, float(score))
+                direction = self._direction_est.estimate()
+                self._direction_est.reset()
+                self._on_wakeword(model_name, float(score), direction)
 
     def start(self) -> None:
         self._stream = sd.InputStream(
