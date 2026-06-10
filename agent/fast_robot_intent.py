@@ -11,7 +11,7 @@ COUNT_WORDS = {
     "two": 2, "twice": 2,
     "three": 3, "thrice": 3,
 }
-GAIT_SPEED = 0.03
+GAIT_SPEED = 0.06
 GAIT_DIRECTIONS = {
     "forward_left": ("forward left", "front left"),
     "forward_right": ("forward right", "front right"),
@@ -388,7 +388,7 @@ def _contains_phrase(text: str, phrase: str) -> bool:
 
 
 def _extract_step_count(text: str) -> int:
-    digit_match = re.search(r"\b([1-3])\b", text)
+    digit_match = re.search(r"\b([1-9][0-9]?)\b", text)
     if digit_match is not None:
         return int(digit_match.group(1))
     for word, count in COUNT_WORDS.items():
