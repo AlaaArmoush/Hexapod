@@ -9,7 +9,7 @@ from __future__ import annotations
 import queue
 import unittest
 
-from raspberry_pi.audio.pipeline import VoicePipeline, _State
+from raspberry_pi.pipeline import VoicePipeline, _State
 
 
 class _MockCanned:
