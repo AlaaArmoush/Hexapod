@@ -15,12 +15,26 @@ from .config import DETECTION_CONFIDENCE_THRESHOLD, DETECTION_MAX_RESULTS
 from .errors import CameraDependencyError
 
 
+def _default_model() -> str:
+    """Prefer ONNX model (onnxruntime, no torch) when available."""
+    from pathlib import Path
+    onnx = Path("yolov8n.onnx")
+    return str(onnx) if onnx.exists() else "yolov8n.pt"
+
+
 class HostDetector:
-    """CPU-side YOLOv8n fallback when OAK-D on-device model is unavailable."""
+    """CPU-side YOLOv8n fallback when OAK-D on-device model is unavailable.
+
+    On Pi: export yolov8n.pt → yolov8n.onnx on the laptop, copy to Pi root,
+    then `pip install ultralytics --no-deps` (uses onnxruntime, no torch needed).
+    On laptop: requires torch (`pip install ultralytics`).
+    """
 
     NN_SIZE = (640, 640)
 
-    def __init__(self, model_name: str = "yolov8n.pt") -> None:
+    def __init__(self, model_name: str | None = None) -> None:
+        if model_name is None:
+            model_name = _default_model()
         try:
             from ultralytics import YOLO
         except ImportError as exc:

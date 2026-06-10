@@ -83,8 +83,9 @@ def main() -> None:
     # ── Load YOLO (one instance, used for both annotation and EMA) ────────────
     try:
         from ultralytics import YOLO
-    except ImportError:
-        print("ultralytics not installed — run: pip install ultralytics")
+    except ImportError as e:
+        print(f"ultralytics import failed: {e}")
+        print("Try: pip install pillow pyyaml requests tqdm psutil numpy matplotlib seaborn pandas")
         sys.exit(1)
 
     model = YOLO("yolov8n.pt")
