@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import time
+from enum import Enum, auto
+
+from bridge.robot_commands import build_gait, build_rotate
+
+
+class ApproachResult(Enum):
+    ARRIVED = auto()
+    LOST = auto()
+    TIMEOUT = auto()
+
+
+class ApproachController:
+    CLOSE_ENOUGH_M = 1.2      # metres — person is close enough to greet
+    CLOSE_ENOUGH_AREA = 0.25  # bbox_area fallback when distance_m is None
+    CENTER_THRESHOLD = 0.15   # |frame_position_x| below this counts as centred
+    TIMEOUT_S = 15.0
+    STEP_WAIT_S = 0.5         # pause after each movement command
+    LOST_THRESHOLD_MS = 2000  # declare LOST after this many ms with no detection
+
+    def __init__(self, tracker, cmd_fn) -> None:
+        self._tracker = tracker
+        self._cmd_fn = cmd_fn
+
+    def run(self) -> ApproachResult:
+        """Blocking: rotate to centre person, walk forward, until arrived/lost/timeout."""
+        deadline = time.time() + self.TIMEOUT_S
+
+        while time.time() < deadline:
+            t = self._tracker.target
+
+            if t is None:
+                if self._tracker.lost_ms > self.LOST_THRESHOLD_MS:
+                    return ApproachResult.LOST
+                time.sleep(0.1)
+                continue
+
+            if self._is_close_enough(t):
+                return ApproachResult.ARRIVED
+
+            if abs(t.frame_position_x) > self.CENTER_THRESHOLD:
+                direction = "left" if t.frame_position_x < 0 else "right"
+                self._cmd_fn(build_rotate(dir=direction, cycles=1))
+            else:
+                self._cmd_fn(build_gait(dir="forward", steps=1))
+
+            time.sleep(self.STEP_WAIT_S)
+
+        return ApproachResult.TIMEOUT
+
+    def _is_close_enough(self, t) -> bool:
+        if t.distance_m is not None:
+            return t.distance_m <= self.CLOSE_ENOUGH_M
+        return t.bbox_area >= self.CLOSE_ENOUGH_AREA
