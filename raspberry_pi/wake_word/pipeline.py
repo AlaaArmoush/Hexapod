@@ -18,7 +18,7 @@ from .detector import WakeWordDetector
 
 WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 WAKEWORD_THRESHOLD = 0.3
-AUDIO_DEVICE = 1          # hexapod combined overlay capture (hw:0,1)
+AUDIO_DEVICE = "hw:0,1"   # hexapod combined overlay capture
 SERIAL_PORT = "/dev/ttyUSB0"
 COOLDOWN_SECS = 2.0
 
