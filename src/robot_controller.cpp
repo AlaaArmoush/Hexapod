@@ -78,6 +78,7 @@ static void setRobotMode(RobotMode mode) {
 void robotInit() {
   cameraHeadInit();
   setRobotMode(ROBOT_MODE_IDLE);
+  displaySetFace(FACE_SLEEP);
 }
 
 void robotUpdate() {
