@@ -30,6 +30,7 @@ class HostDetector:
     def detect(self, frame: np.ndarray, target_label: str | None = None) -> DetectionResult:
         """Run detection on a BGR frame. Returns filtered DetectionResult."""
         normalized_target = normalize_object_name(target_label) if target_label else None
+        frame_h, frame_w = frame.shape[:2]
 
         t0 = int(time.time() * 1000)
         results = self._model(frame, verbose=False, imgsz=self.NN_SIZE[0])[0]
@@ -44,9 +45,9 @@ class HostDetector:
                 results.boxes.cls.tolist(),
             ):
                 label = names[int(cls_id)]
-                # Pack into the format detection_from_yolo_box expects: [x1, y1, x2, y2, conf, cls_id]
+                # ultralytics returns coords in original frame space, not NN_SIZE
                 box = [*box_xyxy, conf, cls_id]
-                detections.append(detection_from_yolo_box(box, label, self.NN_SIZE))
+                detections.append(detection_from_yolo_box(box, label, (frame_w, frame_h)))
 
         filtered = filter_detections(
             detections,
