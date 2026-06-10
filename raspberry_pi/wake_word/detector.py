@@ -16,6 +16,7 @@ CHANNELS_PI = 4
 OWW_CHUNK_FRAMES = 1280                            # ~80 ms at 16 kHz
 HW_CHUNK_FRAMES = OWW_CHUNK_FRAMES * _DOWNSAMPLE  # = 3840 frames at 48 kHz
 WAKEWORD_THRESHOLD = 0.3
+WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 
 # ALSA string device name — works with sounddevice even when query_devices() returns nothing
 AUDIO_DEVICE = "hw:0,1"

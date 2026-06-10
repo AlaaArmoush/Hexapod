@@ -19,8 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bridge.robot_commands import build_camera_pan, build_rotate
 from raspberry_pi.audio.scripts.audio_mode import listen as audio_listen, off as audio_off
-from raspberry_pi.wake_word.detector import WakeWordDetector
-from raspberry_pi.wake_word.pipeline import WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
+from raspberry_pi.wake_word.detector import WakeWordDetector, WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
 
 COOLDOWN_SECS = 2.0
 
