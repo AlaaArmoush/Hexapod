@@ -14,7 +14,9 @@ class ApproachResult(Enum):
 
 class ApproachController:
     CLOSE_ENOUGH_M = 0.9      # metres — person is close enough to greet
-    CENTER_THRESHOLD = 0.25   # |frame_position_x| below this counts as centred
+    CENTER_THRESHOLD = 0.5    # |frame_position_x| below this counts as centred.
+    # Kept high because the minimum firmware rotation is 30°, which overshoots
+    # small corrections and causes oscillation. Only correct big offsets.
     TIMEOUT_S = 60.0
     STEP_WAIT_S = 1.2         # wait for motion + a fresh tracker frame
     LOST_THRESHOLD_MS = 2000  # declare LOST after this many ms with no detection

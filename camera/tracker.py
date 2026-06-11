@@ -44,6 +44,16 @@ class PersonTracker:
             self._thread.join(timeout=2.0)
             self._thread = None
 
+    def reset(self) -> None:
+        """Clear the smoothed target so the next detection starts fresh.
+
+        Call this after the body turns to a new heading — otherwise the EMA
+        carries stale position values from the old camera angle into the approach.
+        """
+        with self._lock:
+            self._target = None
+            self._last_seen_ms = 0
+
     @property
     def target(self) -> TrackedPerson | None:
         with self._lock:

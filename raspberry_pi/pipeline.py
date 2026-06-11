@@ -162,6 +162,11 @@ class VoicePipeline:
         rotated = self._align_body_to_pan(pan_pos)
         if rotated:
             time.sleep(1.4)  # let the body rotation finish
+        # Reset the tracker EMA so the approach starts with a fresh position reading —
+        # the smoothed values from the pre-turn angle would otherwise appear as an offset
+        # and trigger an immediate unnecessary correction rotation.
+        if self._tracker is not None:
+            self._tracker.reset()
         try:
             self._cmd_fn(build_camera_center())
         except Exception:
@@ -302,7 +307,15 @@ class VoicePipeline:
                         self._tracker.detector,
                         self._cmd_fn,
                     )
-                    result = searcher.search(target_label)
+                    try:
+                        result = searcher.search(target_label)
+                    except Exception as exc:
+                        print(f"[pipeline] search failed: {exc}", file=sys.stderr)
+                        self._tts.say("Search failed.")
+                        self._face("sad")
+                        self._spoke_at = time.monotonic()
+                        self._finish_speaking()
+                        return
                     if result.found:
                         self._tts.say(f"Found it! It's to my {result.position}.")
                         self._face("happy")
