@@ -1,5 +1,3 @@
-"""Shared response contract for agent output fields."""
-
 from __future__ import annotations
 
 from tools import list_all

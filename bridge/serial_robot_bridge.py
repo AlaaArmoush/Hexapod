@@ -139,13 +139,6 @@ class SerialRobotBridge:
         raise TimeoutError(f"timed out waiting for ok response for {cmd!r} after {timeout:.2f}s")
 
     def wait_for_done(self, cmd: str, timeout: float = 12.0) -> ParsedResponse:
-        """Block until the firmware reports a bounded motion has finished.
-
-        Bounded motions (gait, rotate, ...) ack immediately with {"ok":true} when
-        accepted, then emit {"event":"done","cmd":...} once the motion completes.
-        Waiting for that event makes a motion atomic — the next command can't
-        interrupt and restart an in-progress one.
-        """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()

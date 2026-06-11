@@ -1,5 +1,3 @@
-"""Deterministic fast path for simple robot commands."""
-
 from __future__ import annotations
 
 import re
@@ -121,8 +119,6 @@ _INFO_TOOLS: list[tuple[tuple[str, ...], str, str, str, str]] = [
 
 
 def build_fast_robot_plan(user_input: str) -> dict[str, Any] | None:
-    """Return an agent-plan dict for obvious robot commands, or None."""
-
     text = _normalize(user_input)
     if not text:
         return None

@@ -1,11 +1,3 @@
-"""
-Wake Word Pipeline — Phase 2 (Pi hardware).
-
-Usage:
-    python -m raspberry_pi.wake_word.pipeline
-
-State machine: IDLE → LISTENING → WAKEWORD_DETECTED → PANNING → IDLE
-"""
 from __future__ import annotations
 
 import sys

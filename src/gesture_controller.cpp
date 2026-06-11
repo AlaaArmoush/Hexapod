@@ -279,7 +279,8 @@ static void updateLook(unsigned long elapsed) {
   } else if (equalsIgnoreCase(lookCommand.dir, "left")) {
     poseBodyOffset(0.0f, LOOK_BODY_OFFSET_Y, 0.0f);
   } else if (equalsIgnoreCase(lookCommand.dir, "up")) {
-    poseBodyOffset(LOOK_BODY_OFFSET_X, 0.0f, 0.0f);
+    poseLookUpTuned(lookCommand.frontFemur, lookCommand.frontTibia,
+                    lookCommand.backFemur, lookCommand.backTibia);
   } else if (equalsIgnoreCase(lookCommand.dir, "down")) {
     poseBodyOffset(-LOOK_BODY_OFFSET_X, 0.0f, 0.0f);
   } else {

@@ -41,8 +41,6 @@ _COCO_NAMES = [
 
 
 class _OnnxBackend:
-    """Pure onnxruntime inference — no torch, no ultralytics."""
-
     NN = 640
 
     def __init__(self, model_path: str) -> None:
@@ -54,7 +52,6 @@ class _OnnxBackend:
         self._input_name = self._session.get_inputs()[0].name
 
     def __call__(self, frame: np.ndarray):
-        """Return list of [x1, y1, x2, y2, conf, class_id] in frame pixel coords."""
         h, w = frame.shape[:2]
 
         # Preprocess: BGR → RGB, resize to 640x640, NCHW float32 0-1
@@ -99,8 +96,6 @@ class _OnnxBackend:
 
 
 class _UltralyticsBackend:
-    """ultralytics backend — requires torch, works on x86 dev machine."""
-
     def __init__(self, model_path: str) -> None:
         try:
             from ultralytics import YOLO
@@ -124,12 +119,6 @@ class _UltralyticsBackend:
 
 
 class HostDetector:
-    """CPU-side YOLOv8n detector.
-
-    On Pi:    copy yolov8n.onnx to repo root → uses pure onnxruntime (no torch).
-    On laptop: uses ultralytics + torch via yolov8n.pt.
-    """
-
     def __init__(self, model_name: str | None = None) -> None:
         if model_name is None:
             model_name = _default_model()

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 enum TestMode {
   MODE_NONE,
   MODE_SITTING_TEST,
@@ -138,6 +140,13 @@ struct LookCommand {
   char dir[12] = "center";
   unsigned long duration_ms = 1200UL;
   bool persistent = false;
+  // "look up" tuning — femur-up / tibia-in degrees (positive raises femur / tucks
+  // tibia inward; negative does the opposite). Default to the config stance so an
+  // ordinary {"cmd":"look","dir":"up"} behaves unchanged.
+  int frontFemur = -LOOK_UP_FRONT_FEMUR_DOWN_DEG;
+  int frontTibia = LOOK_UP_FRONT_TIBIA_IN_DEG;
+  int backFemur  = LOOK_UP_BACK_FEMUR_UP_DEG;
+  int backTibia  = LOOK_UP_BACK_TIBIA_IN_DEG;
   bool invalidDirection = false;
   bool invalidNumeric = false;
 };

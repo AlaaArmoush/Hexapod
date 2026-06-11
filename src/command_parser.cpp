@@ -259,6 +259,10 @@ static ParseResult parseJson(const char* line, RobotCommand& out) {
     out.look.invalidNumeric = invalidNumber(doc, "duration_ms");
     out.look.duration_ms = doc["duration_ms"] | LOOK_DURATION_DEFAULT_MS;
     out.look.persistent = doc["persistent"] | false;
+    out.look.frontFemur = doc["front_femur"] | out.look.frontFemur;
+    out.look.frontTibia = doc["front_tibia"] | out.look.frontTibia;
+    out.look.backFemur  = doc["back_femur"]  | out.look.backFemur;
+    out.look.backTibia  = doc["back_tibia"]  | out.look.backTibia;
     if (out.look.duration_ms == 0) out.look.invalidNumeric = true;
   } else if (out.type == ROBOT_CMD_NOD || out.type == ROBOT_CMD_SHAKE) {
     out.nodShake.invalidNumeric = invalidNumber(doc, "count");

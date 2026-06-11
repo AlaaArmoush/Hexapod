@@ -101,7 +101,6 @@ class DepthAICameraProvider:
     # ------------------------------------------------------------------
 
     def start(self) -> None:
-        """Open the device and start a long-lived pipeline."""
         if self._pipeline is not None:
             return
         dai = self._import_depthai()
@@ -143,21 +142,18 @@ class DepthAICameraProvider:
         self._pipeline = pipeline
 
     def grab_frame(self):
-        """Return latest BGR frame as numpy array, or None if not ready."""
         if self._color_queue is None:
             return None
         msg = self._color_queue.tryGet()
         return msg.getCvFrame() if msg is not None else None
 
     def grab_depth(self):
-        """Return latest depth frame as numpy array, or None if unavailable."""
         if self._depth_queue is None:
             return None
         msg = self._depth_queue.tryGet()
         return msg.getFrame() if msg is not None else None
 
     def stop(self) -> None:
-        """Tear down the persistent pipeline."""
         pipeline, self._pipeline = self._pipeline, None
         self._device = None
         self._color_queue = None

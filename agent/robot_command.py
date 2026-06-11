@@ -1,5 +1,3 @@
-"""Validate robot_command tool args using the existing bridge protocol."""
-
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -50,7 +48,6 @@ UNSAFE_ROBOT_KEYWORDS = {
 
 
 def compile_robot_command(command: dict[str, Any]) -> dict[str, Any]:
-    """Validate and normalize a Gemma-planned robot command."""
 
     if not isinstance(command, dict):
         raise UnknownActionError("Robot command must be a JSON object")

@@ -13,7 +13,7 @@ class ApproachResult(Enum):
 
 
 class ApproachController:
-    CLOSE_ENOUGH_M = 0.6      # metres — person is close enough to greet
+    CLOSE_ENOUGH_M = 0.9      # metres — person is close enough to greet
     CENTER_THRESHOLD = 0.25   # |frame_position_x| below this counts as centred
     TIMEOUT_S = 60.0
     STEP_WAIT_S = 0.3         # brief settle for a fresh tracker frame (motion is synchronous)
@@ -24,7 +24,6 @@ class ApproachController:
         self._cmd_fn = cmd_fn
 
     def run(self) -> ApproachResult:
-        """Blocking: rotate to centre person, walk forward, until arrived/lost/timeout."""
         print(f"[approach] started, threshold={self.CLOSE_ENOUGH_M}m", flush=True)
         deadline = time.time() + self.TIMEOUT_S
 

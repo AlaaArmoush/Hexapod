@@ -33,13 +33,6 @@ class DirectionEstimator:
 
 
 class RealDirectionEstimator(DirectionEstimator):
-    """
-    Rolling window (≈1.4 s) of per-channel energy — same approach as
-    test_mic_energy.py.  Using a deque capped at window_chunks means estimate()
-    always reflects recent audio rather than the entire session since last reset,
-    so a brief "Hey Heksah" utterance isn't drowned out by ambient noise.
-    """
-
     def __init__(
         self,
         min_advantage_db: float = _MIN_ADVANTAGE_DB,

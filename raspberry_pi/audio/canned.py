@@ -1,8 +1,3 @@
-"""
-CannedLines — loads pre-rendered WAVs into memory at startup and plays by key.
-
-All WAVs must exist before load(); run scripts/generate_canned_lines.py first.
-"""
 from __future__ import annotations
 
 import wave

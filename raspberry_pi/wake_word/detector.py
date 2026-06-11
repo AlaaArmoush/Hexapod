@@ -25,12 +25,6 @@ WakeCallback = Callable[[str, float, str], None]
 
 
 class WakeWordDetector:
-    """
-    Streams 4-channel 48 kHz audio from the Pi soundcard (hw:0,1),
-    downsamples CH0 to 16 kHz, and runs openwakeword frame-by-frame.
-    Calls on_wakeword(model_name, score, direction) when confidence crosses the threshold.
-    """
-
     def __init__(
         self,
         model_path: Path,

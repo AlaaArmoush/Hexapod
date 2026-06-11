@@ -1,5 +1,3 @@
-"""Validation for parsed agent plans."""
-
 from __future__ import annotations
 
 import re
@@ -52,8 +50,6 @@ class ValidatedAgentPlan:
 
 
 def validate_agent_plan(plan: dict) -> ValidatedAgentPlan:
-    """Validate a parsed agent plan and return a normalized dataclass."""
-
     if not isinstance(plan, dict):
         raise AgentPlanValidationError("Agent plan must be a dictionary")
 

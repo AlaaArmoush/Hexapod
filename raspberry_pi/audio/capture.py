@@ -1,11 +1,3 @@
-"""
-AudioCapture — reads 4-ch 48 kHz audio from the hexapod DMIC via arecord,
-downsamples channel 0 to mono 16 kHz, and feeds float32 chunks to a callback.
-
-Two-thread design: _reader pulls bytes from arecord stdout as fast as possible;
-_worker converts/resamples and calls on_chunk.  This prevents arecord buffer
-overruns when on_chunk (Moonshine inference) takes longer than one chunk period.
-"""
 from __future__ import annotations
 
 import queue
@@ -88,7 +80,6 @@ class AudioCapture:
         self._worker_thread.start()
 
     def flush(self) -> None:
-        """Drain queued audio chunks so stale audio is not fed to STT on resume."""
         while not self._queue.empty():
             try:
                 self._queue.get_nowait()

@@ -1,2 +1,1 @@
-"""Local Gemma agent package."""
 

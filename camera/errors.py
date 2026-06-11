@@ -1,6 +1,4 @@
 class CameraError(Exception):
-    """Base exception for camera tool failures."""
-
     error_code = "camera_error"
 
     def __init__(self, message: str | None = None, *, data: dict | None = None) -> None:

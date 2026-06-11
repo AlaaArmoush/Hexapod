@@ -60,18 +60,32 @@
 #define LOOK_BODY_OFFSET_Y    25.0f
 #define LOOK_BODY_OFFSET_X    18.0f
 
+// "Look up" stance — pitch the body nose-up so the camera aims higher (e.g. a
+// seated person while the hexapod is on the floor). Back legs fold so the rear
+// of the body drops; middle legs splay outward for a wider, stabler base.
+// Tune these on hardware — start small and increase until the camera aims high
+// enough without the robot tipping backward.
+#define LOOK_UP_BACK_FOLD_Z   30.0f   // mm, back feet up → rear of body lowers
+#define LOOK_UP_MID_SPLAY_Y   25.0f   // mm, middle feet outward for support
+#define LOOK_UP_FRONT_LIFT_Z  0.0f    // mm, front feet down → nose rises (0 = off)
+// Joint-space trims layered on top of the foot targets above (sign handled per side):
+#define LOOK_UP_BACK_FEMUR_UP_DEG     30   // back femurs raise further
+#define LOOK_UP_FRONT_FEMUR_DOWN_DEG  50   // front femurs lower so front feet stay planted
+#define LOOK_UP_FRONT_TIBIA_IN_DEG   -50   // front tibias
+#define LOOK_UP_BACK_TIBIA_IN_DEG     15   // back tibias
+
 // Camera head / face pan servo — MG996R on PCA9685.
 // Default: board 0 (0x40), channel 7. Keep board/channel centralized for wiring changes.
 #define CAMERA_SERVO_BOARD              0
 #define CAMERA_SERVO_CHANNEL            10
-#define CAMERA_SERVO_MIN_DEG            30
-#define CAMERA_SERVO_MAX_DEG            150
-#define CAMERA_SERVO_TRIM               0
-#define CAMERA_PAN_LEFT_DEG             140
+#define CAMERA_SERVO_MIN_DEG            15
+#define CAMERA_SERVO_MAX_DEG            165
+#define CAMERA_SERVO_TRIM               -5
+#define CAMERA_PAN_LEFT_DEG             165
 #define CAMERA_PAN_FRONT_LEFT_DEG       120
 #define CAMERA_PAN_CENTER_DEG           90
 #define CAMERA_PAN_FRONT_RIGHT_DEG      60
-#define CAMERA_PAN_RIGHT_DEG            40
+#define CAMERA_PAN_RIGHT_DEG            15
 #define CAMERA_SERVO_SLEW_DEG_PER_UPDATE 5
 #define CAMERA_SERVO_UPDATE_MS          10UL
 

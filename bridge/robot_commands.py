@@ -242,7 +242,15 @@ def build_lean(dir: str = "left", amount_mm: float = 20.0, duration_ms: int = 40
     return {"cmd": "lean", "dir": dir, "amount_mm": amount_mm, "duration_ms": duration_ms}
 
 
-def build_look(dir: str = "center", duration_ms: int | None = None, persistent: bool = False) -> dict:
+def build_look(
+    dir: str = "center",
+    duration_ms: int | None = None,
+    persistent: bool = False,
+    front_femur: int | None = None,
+    front_tibia: int | None = None,
+    back_femur: int | None = None,
+    back_tibia: int | None = None,
+) -> dict:
     dir = _ensure_string(dir, "dir")
     if dir not in LOOK_DIRECTIONS:
         raise InvalidParameterError(f"look dir must be one of {sorted(LOOK_DIRECTIONS)}, got {dir!r}")
@@ -254,6 +262,15 @@ def build_look(dir: str = "center", duration_ms: int | None = None, persistent: 
         _ensure_positive(duration_ms, "duration_ms")
     if persistent:
         command["persistent"] = True
+    # "look up" stance tuning (femur-up / tibia-in degrees, signed).
+    for key, value in (
+        ("front_femur", front_femur),
+        ("front_tibia", front_tibia),
+        ("back_femur", back_femur),
+        ("back_tibia", back_tibia),
+    ):
+        if value is not None:
+            command[key] = _ensure_int(value, key)
     return _ensure_no_forbidden_fields(command)
 
 

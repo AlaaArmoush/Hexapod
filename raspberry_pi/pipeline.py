@@ -1,15 +1,3 @@
-"""
-VoicePipeline — capture → STT → agent → TTS state machine.
-
-States (no wake word): IDLE → LISTENING → THINKING → SPEAKING → LISTENING
-States (wake word):    IDLE → WAKE_LISTENING → LISTENING → THINKING → SPEAKING → WAKE_LISTENING
-
-Usage:
-    python -m raspberry_pi.pipeline                              # llama-server on localhost:8080
-    python -m raspberry_pi.pipeline --wake-word                  # require "Hey Heksah" first
-    python -m raspberry_pi.pipeline --enable-robot --port /dev/ttyUSB0
-    python -m raspberry_pi.pipeline --base-url http://HOST:8080
-"""
 from __future__ import annotations
 
 import os
@@ -200,15 +188,11 @@ class VoicePipeline:
 
         if self._tracker is not None:
             from agent.search_intent import match_search_intent
-            from camera.detection import normalize_object_name
+            from camera.detection import resolve_coco_label
             from camera.search import ObjectSearcher
-            from camera.errors import CameraUnsupportedObjectClass
             raw_target = match_search_intent(text)
             if raw_target is not None:
-                try:
-                    target_label = normalize_object_name(raw_target)
-                except CameraUnsupportedObjectClass:
-                    target_label = None
+                target_label = resolve_coco_label(raw_target)
                 if target_label is not None:
                     self._face("scan")
                     self._tts.say(f"Searching for {raw_target}.")

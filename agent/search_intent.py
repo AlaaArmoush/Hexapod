@@ -13,7 +13,6 @@ _SEARCH_TRIGGERS = (
 
 
 def match_search_intent(text: str) -> str | None:
-    """Return the target label if text is a search request, else None."""
     t = text.lower().strip()
     for trigger in _SEARCH_TRIGGERS:
         if trigger in t:

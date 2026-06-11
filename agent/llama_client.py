@@ -1,5 +1,3 @@
-"""Client for llama-server's OpenAI-compatible chat endpoint."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -17,8 +15,6 @@ DEFAULT_START_COMMAND = (
 
 
 class LlamaClient:
-    """Small wrapper around llama-server's `/v1/chat/completions` endpoint."""
-
     def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout: int = 30):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -30,8 +26,6 @@ class LlamaClient:
         max_tokens: int | None = None,
         json_object: bool = False,
     ) -> str:
-        """Send chat messages to llama-server and return the assistant text."""
-
         payload: dict[str, Any] = {"messages": messages}
         if temperature is not None:
             payload["temperature"] = temperature
@@ -64,12 +58,6 @@ class LlamaClient:
             raise RuntimeError("llama-server returned an unexpected response shape") from exc
 
     def warmup(self, system_prompt: str) -> None:
-        """Pre-fill the server KV cache with the system prompt.
-
-        Send a minimal dummy turn (max_tokens=1) so llama-server tokenizes
-        and caches the system prompt prefix.  All subsequent real requests
-        reuse those cached tokens instead of re-evaluating them from scratch.
-        """
         try:
             self.chat(
                 messages=[

@@ -1,5 +1,3 @@
-"""Core local agent loop: model output to validated action."""
-
 from __future__ import annotations
 
 import json
@@ -59,8 +57,6 @@ class AgentLoop:
         self.face_executor = face_executor
 
     def run_once(self, user_input: str) -> dict[str, Any]:
-        """Run one user turn through the model, parser, validator, and tools."""
-
         started_at = time.perf_counter()
         timings: dict[str, Any] = {}
 

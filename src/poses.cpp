@@ -71,3 +71,38 @@ void poseBodyOffset(float x, float y, float z) {
     legIK(i, x, y, z);
   }
 }
+
+// Place one leg at an IK foot target, then layer on joint-space deltas expressed
+// semantically: femurUp raises the femur, tibiaIn tucks the tibia inward. The
+// left/right sign convention (left = +delta, right = -delta for both) is handled
+// here — see the leg table in ik.cpp.
+static void writeLookUpLeg(int leg, float x, float y, float z, int femurUp, int tibiaIn) {
+  IKSolution s;
+  if (solveLegIK(leg, x, y, z, s) != IK_OK) return;
+  const LegDesc& d = LEGS[leg];
+  int sign = d.mirrored ? +1 : -1;
+  servoWriteRaw(d.board_coxa,  d.ch_coxa,  s.coxa  + d.trim_coxa);
+  servoWriteRaw(d.board_femur, d.ch_femur, s.femur + sign * femurUp + d.trim_femur);
+  servoWriteRaw(d.board_tibia, d.ch_tibia, s.tibia + sign * tibiaIn + d.trim_tibia);
+}
+
+// Pitch the body nose-up so the camera aims higher. Positive foot-Z folds a leg
+// (that corner of the body drops); negative extends it (that corner rises).
+// +Y is the right side, so the right-middle leg splays out with +Y and the
+// left-middle with -Y. Leg indices: LF=0, LM=1, LB=2, RF=3, RM=4, RB=5.
+void poseLookUpTuned(int frontFemurUp, int frontTibiaIn, int backFemurUp, int backTibiaIn) {
+  // Front: femur/tibia deltas (default: femur down, tibia in) to keep feet planted.
+  writeLookUpLeg(0, 0.0f, 0.0f, -LOOK_UP_FRONT_LIFT_Z, frontFemurUp, frontTibiaIn);  // LF
+  writeLookUpLeg(3, 0.0f, 0.0f, -LOOK_UP_FRONT_LIFT_Z, frontFemurUp, frontTibiaIn);  // RF
+  // Middle: splay outward for a wider base.
+  writeLookUpLeg(1, 0.0f, -LOOK_UP_MID_SPLAY_Y, 0.0f, 0, 0);  // LM
+  writeLookUpLeg(4, 0.0f, +LOOK_UP_MID_SPLAY_Y, 0.0f, 0, 0);  // RM
+  // Back: fold (rear drops) plus femur/tibia deltas.
+  writeLookUpLeg(2, 0.0f, 0.0f, +LOOK_UP_BACK_FOLD_Z, backFemurUp, backTibiaIn);  // LB
+  writeLookUpLeg(5, 0.0f, 0.0f, +LOOK_UP_BACK_FOLD_Z, backFemurUp, backTibiaIn);  // RB
+}
+
+void poseLookUp() {
+  poseLookUpTuned(-LOOK_UP_FRONT_FEMUR_DOWN_DEG, LOOK_UP_FRONT_TIBIA_IN_DEG,
+                  LOOK_UP_BACK_FEMUR_UP_DEG, LOOK_UP_BACK_TIBIA_IN_DEG);
+}

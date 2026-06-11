@@ -1,5 +1,3 @@
-"""Execute validated robot commands in dry-run or hardware mode."""
-
 from __future__ import annotations
 
 import json
@@ -172,11 +170,6 @@ class RobotExecutor:
         return bridge
 
     def _ping_handshake(self, bridge: SerialRobotBridge) -> None:
-        """Retry ping until the firmware is accepting command lines.
-
-        Commands sent during ESP32 setup can be discarded by the firmware's startup
-        serial flush, so use an explicit ping sync instead of a fixed boot delay.
-        """
         bridge.sync(timeout=DEFAULT_SYNC_TIMEOUT_S)
 
     def _ack_timeout(self, command: dict[str, Any]) -> float:

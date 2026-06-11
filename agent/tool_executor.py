@@ -1,5 +1,3 @@
-"""Execute deterministic tools requested by a validated agent plan."""
-
 from __future__ import annotations
 
 import re
@@ -42,8 +40,6 @@ def execute_tools(
     enable_robot: bool = True,
     user_input: str = "",
 ) -> list[dict[str, Any]]:
-    """Validate, execute, and normalize a list of tool requests."""
-
     results = []
     robot_command_seen = False
     for request in tools:

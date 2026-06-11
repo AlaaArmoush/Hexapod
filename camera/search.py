@@ -24,7 +24,6 @@ class ObjectSearcher:
         self._cmd_fn = cmd_fn
 
     def search(self, target_label: str) -> SearchResult:
-        """Pan through scan positions, detect at each, return best match."""
         best_conf = 0.0
         best_pos = None
         best_dist = None

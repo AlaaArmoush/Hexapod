@@ -18,12 +18,6 @@ class TrackedPerson:
 
 
 class PersonTracker:
-    """Background thread that continuously detects the closest person.
-
-    Uses distance_m when available (on-device path); falls back to
-    largest bbox_area as a distance proxy (host path).
-    """
-
     LOST_TIMEOUT_MS = 2000
     EMA_ALPHA = 0.4
 
@@ -114,7 +108,6 @@ class PersonTracker:
 
     @staticmethod
     def _pick_closest(detections):
-        """Prefer smallest distance_m; fall back to largest bbox_area."""
         with_depth = [d for d in detections if d.distance_m is not None]
         if with_depth:
             return min(with_depth, key=lambda d: d.distance_m)
@@ -122,7 +115,6 @@ class PersonTracker:
 
 
 def _sample_depth(depth_frame, norm_x: float, norm_y: float) -> float | None:
-    """Sample OAK-D depth (mm uint16) at a normalised position, return metres."""
     if depth_frame is None:
         return None
     h, w = depth_frame.shape[:2]

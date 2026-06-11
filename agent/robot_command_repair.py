@@ -1,5 +1,3 @@
-"""Deterministic safety repairs for model-planned robot commands."""
-
 from __future__ import annotations
 
 import re
@@ -17,8 +15,6 @@ COUNT_WORDS = {
 
 
 def repair_robot_command_from_text(command: dict[str, Any], user_input: str) -> dict[str, Any]:
-    """Correct high-risk model math using the original user text."""
-
     if not isinstance(command, dict):
         return command
 

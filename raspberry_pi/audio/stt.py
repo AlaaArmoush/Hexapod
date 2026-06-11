@@ -1,12 +1,3 @@
-"""
-MoonshineSTT — streaming transcription via moonshine-voice.
-
-Moonshine handles VAD and segmentation internally; on_final fires once per
-completed utterance.
-
-Install: pip install moonshine-voice
-Download model: python -m moonshine_voice.download --language en
-"""
 from __future__ import annotations
 
 import sys

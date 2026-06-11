@@ -1,5 +1,3 @@
-"""Parser for raw model output into an agent plan dictionary."""
-
 from __future__ import annotations
 
 import json
@@ -22,8 +20,6 @@ def _strip_code_fences(text: str) -> str:
 
 
 def parse_agent_plan(text: str) -> dict:
-    """Parse exactly one JSON object from raw model output."""
-
     candidate = _strip_code_fences(text)
     decoder = json.JSONDecoder()
 

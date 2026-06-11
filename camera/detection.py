@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .config import DETECTION_CONFIDENCE_THRESHOLD
@@ -146,6 +147,25 @@ def normalize_object_name(object_name: str) -> str:
     if normalized not in COCO_CLASSES:
         raise CameraUnsupportedObjectClass("unsupported_object_class")
     return normalized
+
+
+# Class/alias phrases sorted longest-first so multi-word names (e.g. "cell phone",
+# "dining table") win over any single word they contain.
+_LABEL_PHRASES = sorted(
+    [(name, name) for name in COCO_CLASSES] + list(COCO_ALIASES.items()),
+    key=lambda kv: len(kv[0]),
+    reverse=True,
+)
+
+
+def resolve_coco_label(text: str) -> str | None:
+    if not isinstance(text, str):
+        return None
+    normalized = " ".join(text.strip().lower().replace("_", " ").split())
+    for phrase, canonical in _LABEL_PHRASES:
+        if re.search(rf"\b{re.escape(phrase)}\b", normalized):
+            return canonical
+    return None
 
 
 def detection_from_depthai(raw_detection, label: str) -> ObjectDetection:
