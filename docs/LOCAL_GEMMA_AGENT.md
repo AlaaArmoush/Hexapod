@@ -22,7 +22,9 @@ scripts/run_agent_cli.py
   v
 AgentLoop
   - checks fast_robot_intent.py for unambiguous single-word commands
-    (stand, sit, stop, wave, ping, status → skip LLM entirely)
+    (stand, sit, stop, wave, ping, status, simple movement phrases → skip LLM)
+  - checks search_intent.py for object search phrases
+    ("find the ...", "search for ...", "where is ..." → ObjectSearcher, skip LLM)
   - otherwise calls build_prompt() to select the smallest correct
     prompt section (robot / camera / general tools / full fallback)
   - sends prompt + user text to local Gemma

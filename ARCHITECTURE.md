@@ -530,6 +530,117 @@ validated tool requests. See:
 AI, voice, and host applications should use the bridge or deterministic tool
 executor. They should not write raw serial strings or hardware-level fields.
 
+## Agent Tool System
+
+Files:
+
+- `agent/fast_robot_intent.py`
+- `agent/search_intent.py`
+- `agent/tool_executor.py`
+- `tools/registry.py`
+- `tools/` (time, system, web, memory, timer, camera tools)
+
+The agent pipeline has two deterministic bypass layers that run before the LLM:
+
+```text
+user input
+  → fast_robot_intent   (stand/sit/stop/wave/ping/status/movement phrases)
+  → search_intent       (find/search/where-is → ObjectSearcher, no LLM)
+  → LlamaClient.chat()  (Gemma for everything else)
+  → agent_validator     (schema check, unsafe string rejection)
+  → tool_executor       (dispatches allowed tool names)
+  → robot_executor      (serial or dry-run via SerialRobotBridge)
+```
+
+`fast_robot_intent` handles unambiguous single-word and movement phrases
+without touching the LLM. It produces the same JSON schema the model would.
+
+`search_intent` matches phrases like "find the ...", "where is ...", and
+"search for ..." and calls `ObjectSearcher` directly. The LLM is never invoked
+for these paths.
+
+`tool_executor` dispatches named tools: `get_time`, `get_date`,
+`battery_status`, `network_status`, `system_status`, `search_web`,
+`remember_fact`, `recall_memory`, `forget_memory`, `set_timer`,
+`set_reminder`, `capture_image`, `detect_object`, `detect_person`,
+`check_clearance`, `depth_probe`, `observe_scene`, and `robot_command`.
+
+`robot_executor` sends validated robot intent to `SerialRobotBridge` when
+`--enable-robot` is active, or prints dry-run output otherwise.
+
+## Camera and Vision
+
+Files:
+
+- `camera/provider.py`
+- `camera/host_detector.py`
+- `camera/tracker.py`
+- `camera/approach.py`
+- `camera/search.py`
+- `camera/depth.py`
+- `camera/clearance.py`
+- `camera/detection.py`
+
+See `docs/CAMERA_SYSTEM.md` for full details.
+
+`DepthAICameraProvider` wraps the OAK-D pipeline. It supports one-shot use
+(tool executor opens and closes its own handle) and persistent use during
+tracking sessions. Only one handle may be open at a time.
+
+`HostDetector` is the CPU fallback — it runs YOLOv8n via `ultralytics` and
+produces the same `ObjectDetection` schema as the on-device path.
+
+`PersonTracker` runs a background thread at ~5 FPS. It EMA-smooths the
+detected person position and exposes `target` and `lost_ms` to consumers.
+
+`ApproachController` is a blocking loop called from the pipeline. It rotates
+to centre the person (`|frame_position_x| > 0.5` triggers rotation) and walks
+forward until `distance_m <= 0.9 m` or a 60-second timeout. Returns
+`ARRIVED | LOST | TIMEOUT`.
+
+`ObjectSearcher` scans camera pan positions in order
+(`left → front_left → center → front_right → right`) and detects a named
+object at each. It always returns the camera to center before finishing.
+
+## Voice Pipeline
+
+Files:
+
+- `raspberry_pi/pipeline.py`
+- `raspberry_pi/audio/stt.py`
+- `raspberry_pi/audio/tts.py`
+- `raspberry_pi/audio/capture.py`
+- `raspberry_pi/audio/playback.py`
+- `raspberry_pi/wake_word/detector.py`
+- `raspberry_pi/wake_word/direction.py`
+- `raspberry_pi/audio/scripts/audio_mode.py`
+
+See `docs/VOICE_PIPELINE.md` for full details.
+
+`VoicePipeline` is a state machine with five states:
+
+```text
+IDLE → WAKE_LISTENING → LISTENING → THINKING → SPEAKING → WAKE_LISTENING
+```
+
+With `--wake-word`: the detector streams 48 kHz 4-channel audio to
+openwakeword, fires `on_wakeword(model, score, direction)` on threshold
+crossing, and the pipeline transitions from `WAKE_LISTENING` to `LISTENING`.
+
+With `--enable-camera`: after a wake event the pipeline pans the camera toward
+the estimated voice direction, acquires the person via `PersonTracker`, and
+calls `ApproachController`. On arrival it plays a random greeting canned line
+before starting STT.
+
+STT is `MoonshineSTT` (local streaming, `medium-streaming-en`). TTS is
+`PiperTTS` (`en_US-ryan-high`). Canned WAVs are pre-rendered for zero-latency
+responses on boot, wake, greet, and approach events.
+
+Audio hardware on the Pi 5: capture at `plughw:0,1` (4× INMP441 DMIC),
+playback at `plughw:0,0` (MAX98357A amp). GPIO17 controls mic power, GPIO27
+controls amp enable. `audio_mode.py` switches these around every play/listen
+transition so no AEC is needed.
+
 ## Legacy Debug Tests
 
 These files preserve manual calibration and debug workflows:
