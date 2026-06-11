@@ -22,8 +22,7 @@ def pinctrl_prefix() -> list[str]:
 
 def run_pinctrl(args: Iterable[str]) -> None:
     cmd = [*pinctrl_prefix(), *args]
-    print("+ " + " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL)
 
 
 def set_gpio(gpio: int, level: str) -> None:
@@ -37,19 +36,16 @@ def get_gpio(gpio: int) -> None:
 def listen() -> None:
     set_gpio(AMP_SD_GPIO, "dl")
     set_gpio(MIC_POWER_GPIO, "dl")
-    print("Audio mode: listen (amp OFF, mics ON)")
 
 
 def speak() -> None:
     set_gpio(MIC_POWER_GPIO, "dh")
     set_gpio(AMP_SD_GPIO, "dh")
-    print("Audio mode: speak (mics OFF, amp ON)")
 
 
 def off() -> None:
     set_gpio(AMP_SD_GPIO, "dl")
     set_gpio(MIC_POWER_GPIO, "dh")
-    print("Audio mode: off (amp OFF, mics OFF)")
 
 
 def status() -> None:

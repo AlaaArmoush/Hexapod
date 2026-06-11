@@ -13,7 +13,7 @@ class ApproachResult(Enum):
 
 
 class ApproachController:
-    CLOSE_ENOUGH_M = 1.2      # metres — person is close enough to greet
+    CLOSE_ENOUGH_M = 0.5      # metres — person is close enough to greet
     CENTER_THRESHOLD = 0.15   # |frame_position_x| below this counts as centred
     TIMEOUT_S = 15.0
     STEP_WAIT_S = 0.5         # pause after each movement command
@@ -25,28 +25,38 @@ class ApproachController:
 
     def run(self) -> ApproachResult:
         """Blocking: rotate to centre person, walk forward, until arrived/lost/timeout."""
+        print(f"[approach] started, threshold={self.CLOSE_ENOUGH_M}m", flush=True)
         deadline = time.time() + self.TIMEOUT_S
 
         while time.time() < deadline:
             t = self._tracker.target
 
             if t is None:
-                if self._tracker.lost_ms > self.LOST_THRESHOLD_MS:
+                lost_ms = self._tracker.lost_ms
+                print(f"[approach] no target (lost {lost_ms}ms)", flush=True)
+                if lost_ms > self.LOST_THRESHOLD_MS:
+                    print("[approach] → LOST", flush=True)
                     return ApproachResult.LOST
                 time.sleep(0.1)
                 continue
 
-            print(f"[approach] dist={t.distance_m} x={t.frame_position_x:+.2f}", flush=True)
+            depth_str = f"{t.distance_m:.2f}m" if t.distance_m is not None else "None"
+            print(f"[approach] dist={depth_str}  x={t.frame_position_x:+.2f}  threshold={self.CLOSE_ENOUGH_M}m", flush=True)
+
             if t.distance_m is not None and t.distance_m <= self.CLOSE_ENOUGH_M:
+                print(f"[approach] → ARRIVED ({t.distance_m:.2f}m <= {self.CLOSE_ENOUGH_M}m)", flush=True)
                 return ApproachResult.ARRIVED
 
             if abs(t.frame_position_x) > self.CENTER_THRESHOLD:
                 direction = "left" if t.frame_position_x < 0 else "right"
+                print(f"[approach] rotating {direction} (x={t.frame_position_x:+.2f})", flush=True)
                 self._cmd_fn(build_rotate(dir=direction, cycles=1))
             else:
+                print("[approach] walking forward", flush=True)
                 self._cmd_fn(build_gait(dir="forward", steps=1))
 
             time.sleep(self.STEP_WAIT_S)
 
+        print("[approach] → TIMEOUT", flush=True)
         return ApproachResult.TIMEOUT
 

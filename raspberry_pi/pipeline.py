@@ -12,6 +12,11 @@ Usage:
 """
 from __future__ import annotations
 
+import os
+import warnings
+os.environ.setdefault("ORT_LOGGING_LEVEL", "3")      # suppress onnxruntime C++ info/warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="onnxruntime")
+
 import argparse
 import queue
 import sys
