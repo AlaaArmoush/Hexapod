@@ -66,7 +66,7 @@ class _OnnxBackend:
         raw = self._session.run(None, {self._input_name: blob})[0]  # [1, 84, 8400]
         preds = raw[0].T  # [8400, 84]
 
-        boxes_cxcywh = preds[:, :4]            # normalised cx,cy,w,h (0-1 in 640 space)
+        boxes_cxcywh = preds[:, :4]            # cx,cy,w,h in 640-pixel space (NOT normalised)
         class_scores = preds[:, 4:]            # [8400, 80]
         class_ids = class_scores.argmax(axis=1)
         confidences = class_scores.max(axis=1)
@@ -79,12 +79,12 @@ class _OnnxBackend:
         if len(boxes_cxcywh) == 0:
             return []
 
-        # Convert cx,cy,w,h (640-space) → x1,y1,x2,y2 in original frame pixels
+        # Convert cx,cy,w,h (640-pixel space) → x1,y1,x2,y2 in original frame pixels
         scale_x, scale_y = w / self.NN, h / self.NN
-        cx = boxes_cxcywh[:, 0] * self.NN * scale_x
-        cy = boxes_cxcywh[:, 1] * self.NN * scale_y
-        bw = boxes_cxcywh[:, 2] * self.NN * scale_x
-        bh = boxes_cxcywh[:, 3] * self.NN * scale_y
+        cx = boxes_cxcywh[:, 0] * scale_x
+        cy = boxes_cxcywh[:, 1] * scale_y
+        bw = boxes_cxcywh[:, 2] * scale_x
+        bh = boxes_cxcywh[:, 3] * scale_y
         x1, y1 = cx - bw / 2, cy - bh / 2
         x2, y2 = cx + bw / 2, cy + bh / 2
 
