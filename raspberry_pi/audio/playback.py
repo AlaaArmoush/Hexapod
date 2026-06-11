@@ -24,6 +24,7 @@ class AudioPlayer:
             subprocess.run(
                 ["aplay", "-D", config.PLAYBACK_DEVICE, str(path)],
                 check=True,
+                stderr=subprocess.DEVNULL,
             )
 
     def play_pcm(self, pcm: bytes, sample_rate: int, channels: int = 1) -> None:
@@ -39,6 +40,7 @@ class AudioPlayer:
                     "-",
                 ],
                 stdin=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
             )
             proc.communicate(pcm)
 

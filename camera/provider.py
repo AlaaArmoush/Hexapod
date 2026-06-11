@@ -91,6 +91,82 @@ class DepthAICameraProvider:
         self.width = width
         self.height = height
         self.fps = fps
+        self._device = None
+        self._pipeline = None
+        self._color_queue = None
+        self._depth_queue = None
+
+    # ------------------------------------------------------------------
+    # Persistent pipeline API (used by PersonTracker)
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        """Open the device and start a long-lived pipeline."""
+        if self._pipeline is not None:
+            return
+        dai = self._import_depthai()
+        device = self._open_device_with_retries(dai)
+        pipeline = dai.Pipeline(device)
+
+        color = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
+        color_out = color.requestOutput(
+            (self.width, self.height),
+            dai.ImgFrame.Type.BGR888i,
+            fps=self.fps,
+        )
+        self._color_queue = color_out.createOutputQueue(maxSize=1, blocking=False)
+
+        features = device.getConnectedCameraFeatures()
+        has_stereo = (
+            self._camera_feature(features, dai.CameraBoardSocket.CAM_B) is not None
+            and self._camera_feature(features, dai.CameraBoardSocket.CAM_C) is not None
+        )
+        self._depth_queue = None
+        if has_stereo:
+            left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
+            right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
+            left_out = left.requestOutput((DEPTH_WIDTH, DEPTH_HEIGHT), dai.ImgFrame.Type.NV12, fps=DEPTH_FPS)
+            right_out = right.requestOutput((DEPTH_WIDTH, DEPTH_HEIGHT), dai.ImgFrame.Type.NV12, fps=DEPTH_FPS)
+            stereo = pipeline.create(dai.node.StereoDepth).build(
+                left=left_out,
+                right=right_out,
+                presetMode=dai.node.StereoDepth.PresetMode.DEFAULT,
+            )
+            stereo.initialConfig.setMedianFilter(dai.MedianFilter.MEDIAN_OFF)
+            stereo.setRectification(True)
+            stereo.setExtendedDisparity(True)
+            stereo.setLeftRightCheck(True)
+            self._depth_queue = stereo.depth.createOutputQueue(maxSize=1, blocking=False)
+
+        pipeline.start()
+        self._device = device
+        self._pipeline = pipeline
+
+    def grab_frame(self):
+        """Return latest BGR frame as numpy array, or None if not ready."""
+        if self._color_queue is None:
+            return None
+        msg = self._color_queue.tryGet()
+        return msg.getCvFrame() if msg is not None else None
+
+    def grab_depth(self):
+        """Return latest depth frame as numpy array, or None if unavailable."""
+        if self._depth_queue is None:
+            return None
+        msg = self._depth_queue.tryGet()
+        return msg.getFrame() if msg is not None else None
+
+    def stop(self) -> None:
+        """Tear down the persistent pipeline."""
+        pipeline, self._pipeline = self._pipeline, None
+        self._device = None
+        self._color_queue = None
+        self._depth_queue = None
+        if pipeline is not None:
+            try:
+                pipeline.__exit__(None, None, None)
+            except Exception:
+                pass
 
     def status(self) -> CameraStatus:
         dai = self._import_depthai()
@@ -286,7 +362,7 @@ class DepthAICameraProvider:
             raise self._camera_exception(exc, detection=True) from exc
 
     def close(self) -> None:
-        return None
+        self.stop()
 
     @staticmethod
     def _import_depthai():

@@ -21,6 +21,7 @@ def get_time() -> ToolResult:
             "timezone": timezone,
         },
         display_face="clock",
+        display_text=now.strftime("%H:%M"),
     )
 
 
@@ -40,4 +41,5 @@ def get_date() -> ToolResult:
             "year": now.year,
         },
         display_face="calendar",
+        display_text=now.strftime("%a %b %d"),
     )

@@ -9,6 +9,7 @@ CAPTURE_DEVICE = "plughw:0,1"   # ALSA: hexapod card 0, device 1 (4x INMP441 DMI
 CAPTURE_RATE = 48000
 CAPTURE_CHANNELS = 4
 STT_SAMPLE_RATE = 16000     # Moonshine native rate
+MIC_GAIN = 12.0             # software gain for INMP441 DMIC (adjust if too loud/quiet)
 
 # STT — moonshine-voice
 # Downloaded via: python -m moonshine_voice.download --language en --stt
@@ -32,17 +33,22 @@ TTS_LENGTH_SCALE = None     # None = use voice default; higher = slower
 # Generate: python scripts/generate_canned_lines.py
 CANNED_DIR = _REPO_ROOT / "assets" / "canned"
 CANNED_LINES: dict[str, str] = {
-    "boot_ready": "Ready.",
-    "wake_ack":   "Yes?",
-    "listening":  "I'm listening.",
-    "okay":       "Okay.",
-    "on_it":      "On it.",
-    "one_sec":    "Just a second.",
-    "thinking":   "Let me think.",
-    "working":    "Working on it.",
-    "done":       "Done.",
-    "not_caught": "Sorry, I didn't catch that.",
-    "cant_do":    "I can't do that.",
-    "error":      "Something went wrong.",
-    "goodbye":    "Goodbye.",
+    "boot_ready":   "Ready.",
+    "wake_ack":     "Yes?",
+    "listening":    "I'm listening.",
+    "okay":         "Okay.",
+    "on_it":        "On it.",
+    "one_sec":      "Just a second.",
+    "thinking":     "Let me think.",
+    "working":      "Working on it.",
+    "done":         "Done.",
+    "not_caught":   "Sorry, I didn't catch that.",
+    "cant_do":      "I can't do that.",
+    "error":        "Something went wrong.",
+    "goodbye":      "Goodbye.",
+    "approaching":  "I see you! Coming over.",
+    "greet_1":      "Hello! How can I help you?",
+    "greet_2":      "Hi there! What can I do for you?",
+    "greet_3":      "Hey! Need anything?",
+    "no_one_there": "I thought I heard someone.",
 }

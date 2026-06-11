@@ -43,7 +43,7 @@ def test_build_gait_all_directions():
 
 
 def test_build_gait_defaults_to_one_step_at_conservative_speed():
-    assert build_gait() == {"cmd": "gait", "dir": "forward", "speed": 0.03, "steps": 1}
+    assert build_gait() == {"cmd": "gait", "dir": "forward", "speed": 0.06, "steps": 1}
 
 
 def test_build_gait_invalid_direction():

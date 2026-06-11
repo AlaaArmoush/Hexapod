@@ -282,6 +282,7 @@ def _normalize_tool_result(name: str, result: ToolResult) -> dict[str, Any]:
         "spoken_text": result.spoken_text,
         "data": dict(result.data),
         "display_face": result.display_face or _face_hint_for(name),
+        "display_text": result.display_text,
         "error": result.error,
     }
 

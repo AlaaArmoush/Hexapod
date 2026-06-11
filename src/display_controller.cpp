@@ -26,6 +26,13 @@ static unsigned long lastCustomDrawMs = 0;
 static unsigned long customFaceStartedAt = 0;
 static char currentFaceText[24] = "";
 
+static const FaceState IDLE_EXPRESSIONS[] = {
+  FACE_HAPPY, FACE_CURIOUS, FACE_SURPRISED, FACE_LOVE,
+  FACE_STARSTRUCK, FACE_BOOP, FACE_DIZZY, FACE_CONFUSED,
+};
+static const int IDLE_EXPR_COUNT = 8;
+static unsigned long lastIdleExprAt = 0;
+
 static bool equalsIgnoreCase(const char* a, const char* b) {
   if (!a || !b) return false;
   while (*a && *b) {
@@ -801,7 +808,7 @@ void displayInit() {
     roboEyes.eyeRyNext = centerY;
   }
   setOledDrive();
-  displaySetFace(FACE_IDLE);
+  displaySetFace(FACE_SLEEP);
 }
 
 static void drawSadTears() {
@@ -817,6 +824,12 @@ static void drawSadTears() {
 void displayUpdate() {
   if (tempActive && tempDurationMs > 0 && millis() - tempStartedAt >= tempDurationMs) {
     displayRestoreBaseFace();
+  }
+
+  if (!tempActive && baseFace == FACE_IDLE && millis() - lastIdleExprAt >= 22000UL) {
+    lastIdleExprAt = millis();
+    int idx = (int)(millis() / 22000UL) % IDLE_EXPR_COUNT;
+    displaySetTemporaryFace(IDLE_EXPRESSIONS[idx], 2500);
   }
 
   if (isCustomFace(currentFace)) {

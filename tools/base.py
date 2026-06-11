@@ -9,6 +9,7 @@ class ToolResult:
     spoken_text: str
     data: Dict[str, Any] = field(default_factory=dict)
     display_face: Optional[str] = None
+    display_text: Optional[str] = None
     display_duration_ms: Optional[int] = 3500
     error: Optional[str] = None
 
@@ -19,6 +20,7 @@ class ToolResult:
             "spoken_text": self.spoken_text,
             "data": dict(self.data),
             "display_face": self.display_face,
+            "display_text": self.display_text,
             "display_duration_ms": self.display_duration_ms,
             "error": self.error,
         }

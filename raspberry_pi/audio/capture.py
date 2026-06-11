@@ -62,7 +62,7 @@ class AudioCapture:
             except queue.Empty:
                 continue
             pcm = np.frombuffer(data, dtype="<i4").reshape(-1, config.CAPTURE_CHANNELS)
-            ch0 = pcm[:, 0].astype(np.float32) / (2**31)
+            ch0 = np.clip(pcm[:, 0].astype(np.float32) / (2**31) * config.MIC_GAIN, -1.0, 1.0)
             mono_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
             self._on_chunk(mono_16k)
 

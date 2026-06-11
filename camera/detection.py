@@ -106,6 +106,7 @@ class ObjectDetection:
     frame_position_x: float
     frame_position_y: float
     distance_m: float | None = None
+    bbox_area: float = 0.0
 
     def to_dict(self) -> dict:
         payload = {
@@ -113,6 +114,7 @@ class ObjectDetection:
             "confidence": self.confidence,
             "frame_position_x": self.frame_position_x,
             "frame_position_y": self.frame_position_y,
+            "bbox_area": self.bbox_area,
         }
         if self.distance_m is not None:
             payload["distance_m"] = self.distance_m
@@ -147,15 +149,19 @@ def normalize_object_name(object_name: str) -> str:
 
 
 def detection_from_depthai(raw_detection, label: str) -> ObjectDetection:
-    center_x = (float(raw_detection.xmin) + float(raw_detection.xmax)) / 2.0
-    center_y = (float(raw_detection.ymin) + float(raw_detection.ymax)) / 2.0
+    xmin, xmax = float(raw_detection.xmin), float(raw_detection.xmax)
+    ymin, ymax = float(raw_detection.ymin), float(raw_detection.ymax)
+    center_x = (xmin + xmax) / 2.0
+    center_y = (ymin + ymax) / 2.0
     distance_m = _distance_m(raw_detection)
+    area = round(max(0.0, (xmax - xmin) * (ymax - ymin)), 4)
     return ObjectDetection(
         label=label,
         confidence=round(float(raw_detection.confidence), 3),
         frame_position_x=round((center_x - 0.5) * 2.0, 3),
         frame_position_y=round((center_y - 0.5) * 2.0, 3),
         distance_m=distance_m,
+        bbox_area=area,
     )
 
 
@@ -164,12 +170,14 @@ def detection_from_yolo_box(box, label: str, nn_size: tuple[int, int]) -> Object
     x_min, y_min, x_max, y_max, confidence, _class_id = box
     center_x = ((float(x_min) + float(x_max)) / 2.0) / width
     center_y = ((float(y_min) + float(y_max)) / 2.0) / height
+    area = round(max(0.0, (float(x_max) - float(x_min)) * (float(y_max) - float(y_min))) / (width * height), 4)
     return ObjectDetection(
         label=label,
         confidence=round(float(confidence), 3),
         frame_position_x=round((center_x - 0.5) * 2.0, 3),
         frame_position_y=round((center_y - 0.5) * 2.0, 3),
         distance_m=None,
+        bbox_area=area,
     )
 
 

@@ -119,7 +119,7 @@ class AgentLoopTests(unittest.TestCase):
                     "ok": True,
                     "name": "robot_command",
                     "spoken_text": "Robot command dry-run validated.",
-                    "data": {"serial_json": '{"cmd":"gait","dir":"backward","speed":0.03,"steps":1}'},
+                    "data": {"serial_json": '{"cmd":"gait","dir":"backward","speed":0.06,"steps":1}'},
                     "display_face": "system",
                     "error": None,
                 }
@@ -134,7 +134,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(result["timings"]["plan_source"], "fast_robot")
         self.assertEqual(
             calls,
-            [[{"name": "robot_command", "args": {"cmd": "gait", "dir": "backward", "speed": 0.03, "steps": 1}}]],
+            [[{"name": "robot_command", "args": {"cmd": "gait", "dir": "backward", "speed": 0.06, "steps": 1}}]],
         )
 
     def test_fast_robot_path_can_be_disabled(self):
@@ -237,6 +237,7 @@ class AgentLoopTests(unittest.TestCase):
             llama_client=client,
             tool_executor=fake_tool_executor,
             summarize_tool_results=True,
+            fast_robot_shortcuts=False,
         )
 
         result = loop.run_once("what time is it?")
