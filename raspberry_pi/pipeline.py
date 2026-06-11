@@ -117,7 +117,7 @@ class VoicePipeline:
         self._stop_detector()
         self._dispatch_direction(direction)
 
-        person = self._acquire_person(timeout_s=1.5) if self._tracker is not None else None
+        person = self._acquire_person(timeout_s=3.0) if self._tracker is not None else None
         if person is not None:
             import random
             from bridge.bridge_errors import BridgeError

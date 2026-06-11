@@ -16,7 +16,7 @@ class ApproachController:
     CLOSE_ENOUGH_M = 0.9      # metres — person is close enough to greet
     CENTER_THRESHOLD = 0.25   # |frame_position_x| below this counts as centred
     TIMEOUT_S = 60.0
-    STEP_WAIT_S = 0.3         # brief settle for a fresh tracker frame (motion is synchronous)
+    STEP_WAIT_S = 1.2         # wait for motion + a fresh tracker frame
     LOST_THRESHOLD_MS = 2000  # declare LOST after this many ms with no detection
 
     def __init__(self, tracker, cmd_fn) -> None:
@@ -49,7 +49,7 @@ class ApproachController:
             if abs(t.frame_position_x) > self.CENTER_THRESHOLD:
                 direction = "left" if t.frame_position_x < 0 else "right"
                 print(f"[approach] rotating {direction} (x={t.frame_position_x:+.2f})", flush=True)
-                self._cmd_fn(build_rotate(dir=direction, cycles=5))
+                self._cmd_fn(build_rotate(dir=direction, cycles=1))
             else:
                 print("[approach] walking forward", flush=True)
                 self._cmd_fn(build_gait(dir="forward", steps=3))

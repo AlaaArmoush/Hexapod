@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import queue
 import sys
 import threading
 from pathlib import Path
@@ -47,6 +48,8 @@ class WakeWordDetector:
 
         from raspberry_pi.wake_word.direction import RealDirectionEstimator
         self._direction_est = RealDirectionEstimator()
+        self._chunk_queue: queue.Queue = queue.Queue(maxsize=20)
+        self._worker_thread: threading.Thread | None = None
 
     def _audio_callback(self, indata: np.ndarray, _frames: int, _time_info: object, status: object) -> None:
         if status:
@@ -54,25 +57,35 @@ class WakeWordDetector:
         self._direction_est.update(indata)
         ch0_16k = resample_poly(indata[:, 0].copy(), up=1, down=_DOWNSAMPLE).astype(np.float32)
         pcm = (ch0_16k * 32767).astype(np.int16)
+        # Split into OWW-sized chunks and enqueue — never block the audio thread.
         with self._lock:
             self._buffer = np.concatenate([self._buffer, pcm])
             while len(self._buffer) >= OWW_CHUNK_FRAMES:
                 chunk = self._buffer[:OWW_CHUNK_FRAMES]
                 self._buffer = self._buffer[OWW_CHUNK_FRAMES:]
-                self._process_chunk(chunk)
+                try:
+                    self._chunk_queue.put_nowait(chunk)
+                except queue.Full:
+                    pass  # drop oldest to keep latency low
 
-    def _process_chunk(self, chunk: np.ndarray) -> None:
-        scores = self._model.predict(chunk)
-        for model_name, score in scores.items():
-            if self._debug and score > self._peak:
-                self._peak = score
-                print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
-            if score >= self._threshold:
-                direction = self._direction_est.estimate()
-                self._direction_est.reset()
-                self._on_wakeword(model_name, float(score), direction)
+    def _worker(self) -> None:
+        while True:
+            chunk = self._chunk_queue.get()
+            if chunk is None:
+                break
+            scores = self._model.predict(chunk)
+            for model_name, score in scores.items():
+                if self._debug and score > self._peak:
+                    self._peak = score
+                    print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
+                if score >= self._threshold:
+                    direction = self._direction_est.estimate()
+                    self._direction_est.reset()
+                    self._on_wakeword(model_name, float(score), direction)
 
     def start(self) -> None:
+        self._worker_thread = threading.Thread(target=self._worker, daemon=True)
+        self._worker_thread.start()
         self._stream = sd.InputStream(
             samplerate=SAMPLE_RATE_HW,
             channels=CHANNELS_PI,
@@ -88,3 +101,7 @@ class WakeWordDetector:
             self._stream.stop()
             self._stream.close()
             self._stream = None
+        if self._worker_thread is not None:
+            self._chunk_queue.put(None)
+            self._worker_thread.join(timeout=2.0)
+            self._worker_thread = None

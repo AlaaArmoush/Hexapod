@@ -17,7 +17,7 @@ _LEADER_TO_DIRECTION = {
     3: "back",   # CH3: pin38/3V3
 }
 
-_MIN_ADVANTAGE_DB = 3.0   # dB above runner-up to commit to a direction
+_MIN_ADVANTAGE_DB = 1.0   # dB above runner-up to commit to a direction
 _EPS = 1e-12
 
 
@@ -58,7 +58,8 @@ class RealDirectionEstimator(DirectionEstimator):
         leader = int(np.argmax(db))
         sorted_db = np.sort(db)
         if sorted_db[-1] - sorted_db[-2] < self._min_advantage_db:
-            return "center"
+            # No clear winner — use loudest channel anyway rather than center
+            pass
 
         return _LEADER_TO_DIRECTION[leader]
 
