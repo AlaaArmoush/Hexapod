@@ -15,7 +15,7 @@ from .robot_command import compile_robot_command
 CONFIRMATION_BYPASS_COMMANDS = {"status", "ping"}
 MOVEMENT_CONFIRMATION_BYPASS = {("stop", "smooth"), ("stop", "emergency")}
 DEFAULT_ACK_TIMEOUT_S = 2.0
-DEFAULT_SYNC_TIMEOUT_S = 6.0
+DEFAULT_SYNC_TIMEOUT_S = 12.0
 COMMAND_ACK_TIMEOUTS_S = {
     "stand": 10.0,
     "sit": 10.0,

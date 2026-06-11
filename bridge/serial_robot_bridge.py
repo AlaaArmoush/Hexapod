@@ -132,6 +132,8 @@ class SerialRobotBridge:
         raise TimeoutError(f"timed out waiting for ok response for {cmd!r} after {timeout:.2f}s")
 
     def sync(self, timeout: float = 6.0, attempt_timeout: float = 0.1) -> ParsedResponse:
+        if self._serial is not None:
+            self._serial.reset_input_buffer()
         deadline = time.monotonic() + timeout
         last_error: FirmwareError | None = None
         while time.monotonic() < deadline:

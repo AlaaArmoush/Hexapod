@@ -13,10 +13,10 @@ class ApproachResult(Enum):
 
 
 class ApproachController:
-    CLOSE_ENOUGH_M = 0.5      # metres — person is close enough to greet
+    CLOSE_ENOUGH_M = 0.6      # metres — person is close enough to greet
     CENTER_THRESHOLD = 0.15   # |frame_position_x| below this counts as centred
-    TIMEOUT_S = 15.0
-    STEP_WAIT_S = 0.5         # pause after each movement command
+    TIMEOUT_S = 30.0
+    STEP_WAIT_S = 1.5         # pause after each movement command (let steps complete)
     LOST_THRESHOLD_MS = 2000  # declare LOST after this many ms with no detection
 
     def __init__(self, tracker, cmd_fn) -> None:
@@ -50,10 +50,10 @@ class ApproachController:
             if abs(t.frame_position_x) > self.CENTER_THRESHOLD:
                 direction = "left" if t.frame_position_x < 0 else "right"
                 print(f"[approach] rotating {direction} (x={t.frame_position_x:+.2f})", flush=True)
-                self._cmd_fn(build_rotate(dir=direction, cycles=1))
+                self._cmd_fn(build_rotate(dir=direction, cycles=2))
             else:
                 print("[approach] walking forward", flush=True)
-                self._cmd_fn(build_gait(dir="forward", steps=1))
+                self._cmd_fn(build_gait(dir="forward", steps=3))
 
             time.sleep(self.STEP_WAIT_S)
 

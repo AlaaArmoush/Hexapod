@@ -139,7 +139,6 @@ class VoicePipeline:
                 print("[pipeline] ARRIVED — LISTENING", file=sys.stderr)
                 return
             else:
-                self._canned.play("no_one_there")
                 self._start_detector()
                 self._state = _State.WAKE_LISTENING
                 self._face("idle")
