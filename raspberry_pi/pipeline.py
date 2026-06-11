@@ -379,6 +379,22 @@ def _build_agent_fn(
     return agent_fn, face_executor, cmd_executor
 
 
+def _autodetect_port() -> str | None:
+    """Resolve the ESP32 serial port, preferring the stable by-id symlink.
+
+    /dev/serial/by-id/ names survive USB re-enumeration (ttyUSB0 ↔ ttyUSB1),
+    so a brownout that drops the chip off the bus won't change the path.
+    Falls back to the first /dev/ttyUSB* / /dev/ttyACM* if by-id is unavailable.
+    """
+    import glob
+
+    by_id = sorted(glob.glob("/dev/serial/by-id/*"))
+    if by_id:
+        return by_id[0]
+    legacy = sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
+    return legacy[0] if legacy else None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="VoicePipeline — live voice command loop.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="llama-server URL.")
@@ -391,7 +407,10 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.enable_robot and not args.port:
-        parser.error("--enable-robot requires --port")
+        args.port = _autodetect_port()
+        if args.port is None:
+            parser.error("--enable-robot: no serial port found — pass --port explicitly")
+        print(f"[pipeline] auto-detected robot port: {args.port}", file=sys.stderr)
 
     agent_fn, face_fn, cmd_fn = _build_agent_fn(args)
 
