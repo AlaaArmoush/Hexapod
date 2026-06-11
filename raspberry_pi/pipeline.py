@@ -125,7 +125,8 @@ class VoicePipeline:
         self._stop_detector()
         self._dispatch_direction(direction)
 
-        if self._tracker is not None and self._tracker.target is not None:
+        person = self._acquire_person(timeout_s=1.5) if self._tracker is not None else None
+        if person is not None:
             import random
             from camera.approach import ApproachController, ApproachResult
             print("[pipeline] person detected — approaching", file=sys.stderr)
@@ -148,6 +149,20 @@ class VoicePipeline:
         self._start_stt()
         self._face("listening")
         print("[pipeline] LISTENING — speak a command", file=sys.stderr)
+
+    def _acquire_person(self, timeout_s: float):
+        """Poll the tracker briefly so it can lock on after the camera pans.
+
+        The tracker runs at ~5 FPS, so a single check right after panning usually
+        sees target=None. Poll for up to timeout_s and return the first target found.
+        """
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            target = self._tracker.target
+            if target is not None:
+                return target
+            time.sleep(0.1)
+        return None
 
     def _dispatch_direction(self, direction: str) -> None:
         if self._cmd_fn is None:

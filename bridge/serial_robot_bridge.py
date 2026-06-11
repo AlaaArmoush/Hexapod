@@ -49,6 +49,13 @@ class SerialRobotBridge:
             ser.dtr = False
             ser.rts = False
             ser.open()
+            # A previous interrupted session can leave a partial line (no trailing
+            # '\n') in the firmware's parser buffer; the next command would glue onto
+            # it and parse as garbage. Send a lone newline to terminate that fragment,
+            # then drop both directions' stale bytes before we start talking.
+            ser.write(b"\n")
+            ser.flush()
+            time.sleep(0.1)
             ser.reset_input_buffer()
             self._serial = ser
         except serial.SerialException as exc:
