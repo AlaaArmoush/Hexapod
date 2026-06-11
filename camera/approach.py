@@ -14,7 +14,7 @@ class ApproachResult(Enum):
 
 class ApproachController:
     CLOSE_ENOUGH_M = 1.2      # metres — person is close enough to greet
-    CLOSE_ENOUGH_AREA = 0.25  # bbox_area fallback when distance_m is None
+    CLOSE_ENOUGH_AREA = 0.08  # bbox_area fallback when distance_m is None (~1.5-2m at 1080p)
     CENTER_THRESHOLD = 0.15   # |frame_position_x| below this counts as centred
     TIMEOUT_S = 15.0
     STEP_WAIT_S = 0.5         # pause after each movement command
@@ -37,6 +37,7 @@ class ApproachController:
                 time.sleep(0.1)
                 continue
 
+            print(f"[approach] area={t.bbox_area:.3f} x={t.frame_position_x:+.2f} dist={t.distance_m}", flush=True)
             if self._is_close_enough(t):
                 return ApproachResult.ARRIVED
 
