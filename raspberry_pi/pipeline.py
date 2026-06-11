@@ -96,8 +96,7 @@ class VoicePipeline:
 
     def _start_detector(self) -> None:
         from .audio.scripts.audio_mode import listen as _audio_listen
-        from raspberry_pi.wake_word.pipeline import WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
-        from raspberry_pi.wake_word.detector import WakeWordDetector
+        from raspberry_pi.wake_word.detector import WakeWordDetector, WAKEWORD_MODEL_PATH, WAKEWORD_THRESHOLD, AUDIO_DEVICE
         _audio_listen()
         self._detector = WakeWordDetector(
             model_path=WAKEWORD_MODEL_PATH,
