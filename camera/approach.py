@@ -16,7 +16,7 @@ class ApproachController:
     CLOSE_ENOUGH_M = 0.6      # metres — person is close enough to greet
     CENTER_THRESHOLD = 0.25   # |frame_position_x| below this counts as centred
     TIMEOUT_S = 60.0
-    STEP_WAIT_S = 1.5         # pause after each movement command (let steps complete)
+    STEP_WAIT_S = 0.3         # brief settle for a fresh tracker frame (motion is synchronous)
     LOST_THRESHOLD_MS = 2000  # declare LOST after this many ms with no detection
 
     def __init__(self, tracker, cmd_fn) -> None:

@@ -16,6 +16,9 @@ CONFIRMATION_BYPASS_COMMANDS = {"status", "ping"}
 MOVEMENT_CONFIRMATION_BYPASS = {("stop", "smooth"), ("stop", "emergency")}
 DEFAULT_ACK_TIMEOUT_S = 2.0
 DEFAULT_SYNC_TIMEOUT_S = 12.0
+# Bounded motions ack on accept, then emit {"event":"done"} when finished. Blocking
+# on that event makes them atomic so a follow-up command can't restart one mid-stride.
+DONE_EVENT_TIMEOUTS_S = {"gait": 12.0, "rotate": 12.0}
 COMMAND_ACK_TIMEOUTS_S = {
     "stand": 10.0,
     "sit": 10.0,
@@ -111,6 +114,12 @@ class RobotExecutor:
                     timeout=self._ack_timeout(validated),
                 )
             timings["robot_ack_s"] = time.perf_counter() - ack_started_at
+
+            done_timeout = DONE_EVENT_TIMEOUTS_S.get(validated["cmd"])
+            if done_timeout is not None:
+                done_started_at = time.perf_counter()
+                response = bridge.wait_for_done(validated["cmd"], timeout=done_timeout)
+                timings["robot_done_s"] = time.perf_counter() - done_started_at
         finally:
             if not self.keep_connected:
                 bridge.close()

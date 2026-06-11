@@ -84,7 +84,12 @@ void robotInit() {
 void robotUpdate() {
   cameraHeadUpdate();
   if (currentRobotMode == ROBOT_MODE_SITTING) {
-    if (poseSitUpdate()) setRobotMode(ROBOT_MODE_IDLE);
+    if (poseSitUpdate()) {
+      currentRobotMode = ROBOT_MODE_IDLE;
+      // Settle: hold the sleepy face ~2s after sitting, then drift to the sleep face.
+      displaySetFace(FACE_SLEEP);
+      displaySetTemporaryFace(FACE_SLEEPY, 2000);
+    }
   } else if (currentRobotMode == ROBOT_MODE_GAIT) {
     gaitUpdate();
     if (!gaitIsRunning() && gaitIsDone()) {

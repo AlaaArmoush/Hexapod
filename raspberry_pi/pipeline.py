@@ -61,6 +61,10 @@ class VoicePipeline:
         self._spoke_at: float = 0.0
 
     _POST_SPEAK_COOLDOWN = 1.2
+    # Info-tool faces worth keeping on screen briefly after speaking so the user can
+    # read them, instead of immediately resetting to the idle/sleep face.
+    _LINGER_FACES = {"clock", "calendar", "timer", "reminder", "memory", "battery", "system"}
+    _LINGER_HOLD_S = 2.5
 
     def _is_fast_intent(self, text: str) -> bool:
         try:
@@ -232,6 +236,14 @@ class VoicePipeline:
             print(f"[pipeline] SPEAKING: {response!r}", file=sys.stderr)
             self._tts.say(response)
         self._spoke_at = time.monotonic()
+
+        # Keep info faces (e.g. clock) visible for a moment before resetting to idle —
+        # otherwise _finish_speaking wipes them the instant speaking ends.
+        last_face = getattr(self._agent_fn, "last_face", None)
+        if last_face in self._LINGER_FACES:
+            self._face(last_face)
+            time.sleep(self._LINGER_HOLD_S)
+
         self._finish_speaking()
 
     def _finish_speaking(self) -> None:
@@ -355,6 +367,9 @@ def _build_agent_fn(
 
     def agent_fn(text: str) -> str:
         result = loop.run_once(text)
+        # Expose the agent's chosen face so the pipeline can hold info faces (clock,
+        # calendar, ...) on screen after speaking instead of wiping them to idle.
+        agent_fn.last_face = result.get("face")
         print(f"[agent] result ok={result.get('ok')} kind={result.get('kind')} "
               f"plan_source={result.get('timings',{}).get('plan_source')} "
               f"error={result.get('error')!r}", file=sys.stderr)

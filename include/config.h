@@ -114,25 +114,25 @@
 // TRIM OFFSETS
 // -----------------------------------------
 #define TRIM_LF_COXA 12
-#define TRIM_LF_FEMUR 13
+#define TRIM_LF_FEMUR 3
 #define TRIM_LF_TIBIA 8
 
 #define TRIM_LM_COXA 16
-#define TRIM_LM_FEMUR 14
+#define TRIM_LM_FEMUR 4
 #define TRIM_LM_TIBIA -5
 
 #define TRIM_LB_COXA 12
-#define TRIM_LB_FEMUR 4
+#define TRIM_LB_FEMUR -6
 #define TRIM_LB_TIBIA 10
 
 #define TRIM_RF_COXA 12
-#define TRIM_RF_FEMUR -12
+#define TRIM_RF_FEMUR -2
 #define TRIM_RF_TIBIA 3
 
 #define TRIM_RM_COXA 13
-#define TRIM_RM_FEMUR -11
+#define TRIM_RM_FEMUR -1
 #define TRIM_RM_TIBIA 7
 
 #define TRIM_RB_COXA 13
-#define TRIM_RB_FEMUR 2
+#define TRIM_RB_FEMUR 12
 #define TRIM_RB_TIBIA 9

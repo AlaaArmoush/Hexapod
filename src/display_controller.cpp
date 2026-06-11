@@ -18,6 +18,10 @@ static RoboEyes<Adafruit_SH1107> roboEyes(display);
 static bool available = false;
 static FaceState baseFace = FACE_IDLE;
 static FaceState currentFace = FACE_IDLE;
+// Boot sleep lock: the FACE_SLEEP boot face is held until the firmware has seen two
+// command lines, so the host's connect handshake (flush newline + ping) doesn't wake
+// it — only a real command does. FACE_SLEEPY (sit) is never affected by this.
+static int commandsSinceBoot = 0;
 static bool tempActive = false;
 static unsigned long tempStartedAt = 0;
 static unsigned long tempDurationMs = 0;
@@ -849,8 +853,19 @@ void displayUpdate() {
   }
 }
 
+void displayNotifyCommand() {
+  if (commandsSinceBoot < 2) commandsSinceBoot++;
+}
+
+// While the boot sleep lock is active, suppress any face change except to FACE_SLEEP
+// itself, so the boot face survives the connect handshake.
+static bool bootSleepLocked(FaceState requested) {
+  return commandsSinceBoot < 2 && requested != FACE_SLEEP;
+}
+
 void displaySetFace(FaceState face) {
   if (face < FACE_IDLE || face >= FACE_COUNT) face = FACE_IDLE;
+  if (bootSleepLocked(face)) return;
   baseFace = face;
   tempActive = false;
   tempDurationMs = 0;
@@ -859,6 +874,7 @@ void displaySetFace(FaceState face) {
 
 void displaySetTemporaryFace(FaceState face, unsigned long durationMs) {
   if (face < FACE_IDLE || face >= FACE_COUNT) face = FACE_IDLE;
+  if (bootSleepLocked(face)) return;
   tempActive = true;
   tempStartedAt = millis();
   tempDurationMs = durationMs;

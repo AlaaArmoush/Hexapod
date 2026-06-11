@@ -2,6 +2,7 @@
 #include "command_parser.h"
 #include "command_router.h"
 #include "config.h"
+#include "display_controller.h"
 #include "robot_controller.h"
 #include <Arduino.h>
 
@@ -39,6 +40,7 @@ void serialProtocolUpdate() {
 
     if (c == '\n') {
       lineBuffer[lineLength] = '\0';
+      displayNotifyCommand();  // count every line so the boot sleep face survives the handshake
       RobotCommand command;
       ParseResult result = parseCommand(lineBuffer, command);
       lineLength = 0;

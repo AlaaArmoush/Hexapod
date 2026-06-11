@@ -52,6 +52,7 @@ FaceState displayGetCurrentFace();
 bool displayIsTemporaryFace();
 const char* displayFaceName(FaceState face);
 bool displayParseFaceName(const char* name, FaceState& out);
+void displayNotifyCommand();
 void displaySetGaze(const char* dir);
 void displayCenterGaze();
 void displayTriggerBlink();
