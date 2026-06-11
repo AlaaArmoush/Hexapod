@@ -12,9 +12,9 @@
 #define STEP_DEGREE 5
 
 // Smooth loop tuning
-#define LOOP_INTERP_STEP 1 // degrees per update
+#define LOOP_INTERP_STEP 2 // degrees per update (rotate loop only) — 2x rotation speed
 #define LOOP_UPDATE_MS 5  // update interval
-#define LOOP_HOLD_MS 27   // hold after reaching each phase
+#define LOOP_HOLD_MS 12   // hold after reaching each phase (rotate loop only)
 #define ROTATE_LOOP_UPDATE_MS 4 // rotate update interval; higher = slower turn
 
 // Command-driven firmware

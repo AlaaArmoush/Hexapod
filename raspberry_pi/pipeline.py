@@ -111,47 +111,149 @@ class VoicePipeline:
             self._detector.stop()
             self._detector = None
 
+    # Camera pan position → body rotation needed to face where the camera is looking.
+    # Pan center is straight ahead; left positions sit to the body's left, right to its
+    # right. Rotation is quantised to 30° cycles, so we round to clean multiples — the
+    # ApproachController fine-tunes any residual offset once it sees the person head-on.
+    _PAN_TO_BODY_ROTATE = {
+        "left": ("left", 60),
+        "front_left": ("left", 30),
+        "center": (None, 0),
+        "front_right": ("right", 30),
+        "right": ("right", 60),
+    }
+    # Pan positions scanned (order) when the wake-direction guess doesn't find anyone.
+    _SCAN_PAN_ORDER = ("center", "front_left", "front_right", "left", "right")
+
     def _handle_wakeword(self, direction: str) -> None:
         print(f"[pipeline] wake word (direction={direction!r})", file=sys.stderr)
         self._stop_detector()
         self._dispatch_direction(direction)
 
-        person = self._acquire_person(timeout_s=3.0) if self._tracker is not None else None
-        if person is not None:
-            import random
-            from bridge.bridge_errors import BridgeError
-            from camera.approach import ApproachController, ApproachResult
-            print("[pipeline] person detected — approaching", file=sys.stderr)
-            self._canned.play("approaching")
-            self._face("walking")
-            try:
-                result = ApproachController(self._tracker, self._cmd_fn).run()
-            except BridgeError as exc:
-                # Serial dropped mid-approach (e.g. servo brownout knocked the ESP32
-                # off USB). Abort the approach and recover instead of crashing the
-                # whole pipeline — wake word/camera/STT keep working, and the robot
-                # path comes back on its own once the port re-enumerates.
-                print(f"[pipeline] approach aborted — robot serial lost: {exc}", file=sys.stderr)
-                self._start_detector()
-                self._state = _State.WAKE_LISTENING
-                self._face("idle")
-                return
-            if result == ApproachResult.ARRIVED:
-                self._canned.play(random.choice(["greet_1", "greet_2", "greet_3"]))
-                self._face("listening")
-                self._start_stt()
-                print("[pipeline] ARRIVED — LISTENING", file=sys.stderr)
-                return
+        pan_pos = None
+        if self._tracker is not None:
+            # Fast path: the camera already panned to the voice-direction guess — if the
+            # person is right there, we know which pan position they're at.
+            if self._acquire_person(timeout_s=2.0) is not None:
+                pan_pos = self._guess_to_pan_pos(direction)
             else:
-                self._start_detector()
-                self._state = _State.WAKE_LISTENING
-                self._face("idle")
-                print(f"[pipeline] approach {result.name} — back to WAKE_LISTENING", file=sys.stderr)
-                return
+                # The mic direction is only a coarse guess (and often wrong), so scan the
+                # camera across pan positions to actually find the person.
+                pan_pos = self._scan_for_person()
+
+        if pan_pos is not None:
+            self._greet_and_approach(pan_pos)
+            return
 
         self._start_stt()
         self._face("listening")
         print("[pipeline] LISTENING — speak a command", file=sys.stderr)
+
+    def _greet_and_approach(self, pan_pos: str) -> None:
+        import random
+        from bridge.bridge_errors import BridgeError
+        from bridge.robot_commands import build_camera_center
+        from camera.approach import ApproachController, ApproachResult
+
+        # Turn the body to face where the camera saw the person, then recentre the camera
+        # so the approach runs in the body frame (walking forward now means toward them).
+        # Order matters: a camera_pan command interrupts an in-progress rotate in firmware,
+        # so wait for the body turn to finish before recentring the camera.
+        rotated = self._align_body_to_pan(pan_pos)
+        if rotated:
+            time.sleep(1.4)  # let the body rotation finish
+        try:
+            self._cmd_fn(build_camera_center())
+        except Exception:
+            pass
+        time.sleep(0.6)  # camera recentre + tracker re-lock
+
+        if self._acquire_person(timeout_s=2.0) is None:
+            print("[pipeline] lost person after turning — back to WAKE_LISTENING", file=sys.stderr)
+            self._start_detector()
+            self._state = _State.WAKE_LISTENING
+            self._face("idle")
+            return
+
+        print("[pipeline] person detected — approaching", file=sys.stderr)
+        self._canned.play("approaching")
+        self._face("walking")
+        try:
+            result = ApproachController(self._tracker, self._cmd_fn).run()
+        except BridgeError as exc:
+            # Serial dropped mid-approach (e.g. servo brownout knocked the ESP32
+            # off USB). Abort the approach and recover instead of crashing the
+            # whole pipeline — wake word/camera/STT keep working, and the robot
+            # path comes back on its own once the port re-enumerates.
+            print(f"[pipeline] approach aborted — robot serial lost: {exc}", file=sys.stderr)
+            self._start_detector()
+            self._state = _State.WAKE_LISTENING
+            self._face("idle")
+            return
+        if result == ApproachResult.ARRIVED:
+            self._canned.play(random.choice(["greet_1", "greet_2", "greet_3"]))
+            self._face("listening")
+            self._start_stt()
+            print("[pipeline] ARRIVED — LISTENING", file=sys.stderr)
+            return
+        self._start_detector()
+        self._state = _State.WAKE_LISTENING
+        self._face("idle")
+        print(f"[pipeline] approach {result.name} — back to WAKE_LISTENING", file=sys.stderr)
+
+    @staticmethod
+    def _guess_to_pan_pos(direction: str) -> str:
+        """Which pan position _dispatch_direction left the camera at for this guess."""
+        if direction == "left":
+            return "left"
+        if direction == "right":
+            return "right"
+        return "center"  # front / back (back already rotated the body 180°)
+
+    def _align_body_to_pan(self, pan_pos: str) -> bool:
+        """Rotate the body to face the pan position. Returns True if it issued a turn."""
+        from bridge.robot_commands import build_rotate
+        rot_dir, degrees = self._PAN_TO_BODY_ROTATE.get(pan_pos, (None, 0))
+        if rot_dir is None or degrees == 0:
+            return False
+        print(f"[pipeline] turning body {rot_dir} {degrees}° to face person", file=sys.stderr)
+        try:
+            self._cmd_fn(build_rotate(dir=rot_dir, degrees=degrees))
+            return True
+        except Exception as exc:
+            print(f"[pipeline] body turn failed (ignored): {exc}", file=sys.stderr)
+            return False
+
+    def _scan_for_person(self) -> str | None:
+        """Pan the camera across positions and return the one with the best person
+        detection, or None if nobody is found. Uses fresh per-frame detection (not the
+        smoothed tracker target, which lingers for ~2s and would leak across positions).
+        """
+        from bridge.robot_commands import build_camera_center, build_camera_pan
+        print("[pipeline] no one at the guessed direction — scanning", file=sys.stderr)
+        best_pos = None
+        best_conf = 0.0
+        for pos in self._SCAN_PAN_ORDER:
+            try:
+                self._cmd_fn(build_camera_pan(pos=pos))
+            except Exception:
+                continue
+            time.sleep(0.5)  # camera servo move + a fresh frame
+            frame = self._tracker.provider.grab_frame()
+            if frame is None:
+                continue
+            result = self._tracker.detector.detect(frame, target_label="person")
+            if result is not None and result.detected:
+                conf = max(d.confidence for d in result.detections)
+                if conf > best_conf:
+                    best_conf = conf
+                    best_pos = pos
+        if best_pos is None:
+            try:
+                self._cmd_fn(build_camera_center())
+            except Exception:
+                pass
+        return best_pos
 
     def _acquire_person(self, timeout_s: float):
         """Poll the tracker briefly so it can lock on after the camera pans.
@@ -221,20 +323,25 @@ class VoicePipeline:
         self._spoke_at = time.monotonic()
 
         # Keep info faces (e.g. clock) visible for a moment before resetting to idle —
-        # otherwise _finish_speaking wipes them the instant speaking ends.
+        # otherwise _finish_speaking wipes them the instant speaking ends. The agent
+        # loop already drew these faces *with* their text (e.g. the current time), so we
+        # only hold here — re-sending the face would clear the text back to "--:--".
         last_face = getattr(self._agent_fn, "last_face", None)
         if last_face in self._LINGER_FACES:
-            self._face(last_face)
             time.sleep(self._LINGER_HOLD_S)
 
-        self._finish_speaking()
+        self._finish_speaking(reset_face=not getattr(self._agent_fn, "last_robot_command", False))
 
-    def _finish_speaking(self) -> None:
+    def _finish_speaking(self, reset_face: bool = True) -> None:
         if self._use_wake_word:
             self._stop_stt()
             self._start_detector()
             self._state = _State.WAKE_LISTENING
-            self._face("idle")
+            # After a robot motion command the firmware couples the face to the posture
+            # (sit→sleep, stand→neutral). Forcing "idle" here would stomp that and start
+            # the idle-expression rotation, so leave the firmware's face alone.
+            if reset_face:
+                self._face("idle")
             print("[pipeline] back to WAKE_LISTENING", file=sys.stderr)
         else:
             self._state = _State.LISTENING
@@ -353,6 +460,12 @@ def _build_agent_fn(
         # Expose the agent's chosen face so the pipeline can hold info faces (clock,
         # calendar, ...) on screen after speaking instead of wiping them to idle.
         agent_fn.last_face = result.get("face")
+        # Let the pipeline know a robot motion command ran so it won't reset the face to
+        # idle afterwards — the firmware already set the posture-coupled face.
+        agent_fn.last_robot_command = any(
+            tr.get("name") == "robot_command" and tr.get("ok")
+            for tr in result.get("tool_results", [])
+        )
         print(f"[agent] result ok={result.get('ok')} kind={result.get('kind')} "
               f"plan_source={result.get('timings',{}).get('plan_source')} "
               f"error={result.get('error')!r}", file=sys.stderr)

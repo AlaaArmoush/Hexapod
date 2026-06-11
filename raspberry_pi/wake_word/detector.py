@@ -17,6 +17,10 @@ CHANNELS_PI = 4
 OWW_CHUNK_FRAMES = 1280                            # ~80 ms at 16 kHz
 HW_CHUNK_FRAMES = OWW_CHUNK_FRAMES * _DOWNSAMPLE  # = 3840 frames at 48 kHz
 WAKEWORD_THRESHOLD = 0.3
+# Digital gain applied to the mic signal before openwakeword. The DMIC level is quiet,
+# so normal-volume speech under-drives the model — boosting the signal here lets it fire
+# without lowering the threshold (which would raise false triggers). Tune if needed.
+WAKEWORD_INPUT_GAIN = 4.0
 WAKEWORD_MODEL_PATH = Path(__file__).resolve().parents[2] / "hey_hek_sah.onnx"
 
 # ALSA string device name — works with sounddevice even when query_devices() returns nothing
@@ -56,7 +60,9 @@ class WakeWordDetector:
         if status:
             print(f"[detector] audio status: {status}")
         self._direction_est.update(indata)
-        ch0_16k = resample_poly(indata[:, 0].copy(), up=1, down=_DOWNSAMPLE).astype(np.float32)
+        ch0 = indata[:, 0].astype(np.float32) * WAKEWORD_INPUT_GAIN
+        ch0_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
+        np.clip(ch0_16k, -1.0, 1.0, out=ch0_16k)   # prevent wrap-around on loud peaks
         pcm = (ch0_16k * 32767).astype(np.int16)
         # Split into OWW-sized chunks and enqueue — never block the audio thread.
         with self._lock:
