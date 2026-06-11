@@ -14,14 +14,14 @@ class SearchResult:
     distance_m: float | None
 
 
-# Body orientations (degrees rotated from start, cumulative).  6 × 60° = full circle.
-_BODY_ROTATIONS = [0, 60, 60, 60, 60, 60]
+# Body orientations: 4 × 90° covers all directions with fewer, larger steps.
+_BODY_ROTATIONS = [0, 90, 90, 90]
 _CAMERA_POSITIONS = ["left", "center", "right"]
 
 
 class ObjectSearcher:
-    SETTLE_S = 0.4   # wait after each pan for frames to stabilise
-    ROTATE_WAIT_S = 1.5   # wait after each body rotation for tracker to settle
+    SETTLE_S = 1.0        # wait after each pan — gives detector time to process
+    ROTATE_WAIT_S = 2.0   # wait after each body rotation for motion to settle
 
     def __init__(self, provider, detector, cmd_fn) -> None:
         self._provider = provider

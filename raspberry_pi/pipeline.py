@@ -155,16 +155,9 @@ class VoicePipeline:
         from bridge.robot_commands import build_camera_center
         from camera.approach import ApproachController, ApproachResult
 
-        # Turn the body to face where the camera saw the person, then recentre the camera
-        # so the approach runs in the body frame (walking forward now means toward them).
-        # Order matters: a camera_pan command interrupts an in-progress rotate in firmware,
-        # so wait for the body turn to finish before recentring the camera.
-        rotated = self._align_body_to_pan(pan_pos)
-        if rotated:
-            time.sleep(1.4)  # let the body rotation finish
-        # Reset the tracker EMA so the approach starts with a fresh position reading —
-        # the smoothed values from the pre-turn angle would otherwise appear as an offset
-        # and trigger an immediate unnecessary correction rotation.
+        # Centre the camera so the approach runs with a straight-ahead view.
+        # Body alignment is skipped here — ApproachController corrects lateral offset
+        # via rotation during approach, which looks more natural than a pre-turn.
         if self._tracker is not None:
             self._tracker.reset()
         try:
