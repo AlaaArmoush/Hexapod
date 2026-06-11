@@ -97,6 +97,7 @@ COCO_ALIASES = {
     "cellphone": "cell phone",
     "sofa": "couch",
     "television": "tv",
+    "button": "bottle",
 }
 
 
