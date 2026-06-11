@@ -4,6 +4,8 @@ import threading
 import time
 from dataclasses import dataclass
 
+import numpy as np
+
 
 @dataclass
 class TrackedPerson:
@@ -76,6 +78,7 @@ class PersonTracker:
     def _tick(self) -> None:
         now_ms = int(time.time() * 1000)
         frame = self.provider.grab_frame()
+        depth = self.provider.grab_depth()
         result = self.detector.detect(frame, target_label="person") if frame is not None else None
 
         if result is None or not result.detected:
@@ -85,6 +88,8 @@ class PersonTracker:
             return
 
         best = self._pick_closest(result.detections)
+        distance_m = best.distance_m if best.distance_m is not None else _sample_depth(depth, best.frame_position_x, best.frame_position_y)
+
         with self._lock:
             self._last_seen_ms = now_ms
             if self._target is None:
@@ -92,7 +97,7 @@ class PersonTracker:
                     frame_position_x=best.frame_position_x,
                     frame_position_y=best.frame_position_y,
                     confidence=best.confidence,
-                    distance_m=best.distance_m,
+                    distance_m=distance_m,
                     bbox_area=best.bbox_area,
                     timestamp_ms=now_ms,
                 )
@@ -102,7 +107,7 @@ class PersonTracker:
                     frame_position_x=round(a * best.frame_position_x + (1 - a) * self._target.frame_position_x, 3),
                     frame_position_y=round(a * best.frame_position_y + (1 - a) * self._target.frame_position_y, 3),
                     confidence=best.confidence,
-                    distance_m=best.distance_m,
+                    distance_m=distance_m,
                     bbox_area=best.bbox_area,
                     timestamp_ms=now_ms,
                 )
@@ -114,3 +119,17 @@ class PersonTracker:
         if with_depth:
             return min(with_depth, key=lambda d: d.distance_m)
         return max(detections, key=lambda d: d.bbox_area)
+
+
+def _sample_depth(depth_frame, norm_x: float, norm_y: float) -> float | None:
+    """Sample OAK-D depth (mm uint16) at a normalised position, return metres."""
+    if depth_frame is None:
+        return None
+    h, w = depth_frame.shape[:2]
+    px = max(0, min(w - 1, int((norm_x + 1) / 2 * w)))
+    py = max(0, min(h - 1, int((norm_y + 1) / 2 * h)))
+    patch = depth_frame[max(0, py - 4):py + 5, max(0, px - 4):px + 5]
+    valid = patch[patch > 0]
+    if len(valid) == 0:
+        return None
+    return round(float(valid.mean()) / 1000.0, 3)
