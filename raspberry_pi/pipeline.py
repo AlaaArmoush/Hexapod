@@ -128,11 +128,23 @@ class VoicePipeline:
         person = self._acquire_person(timeout_s=1.5) if self._tracker is not None else None
         if person is not None:
             import random
+            from bridge.bridge_errors import BridgeError
             from camera.approach import ApproachController, ApproachResult
             print("[pipeline] person detected — approaching", file=sys.stderr)
             self._canned.play("approaching")
             self._face("walking")
-            result = ApproachController(self._tracker, self._cmd_fn).run()
+            try:
+                result = ApproachController(self._tracker, self._cmd_fn).run()
+            except BridgeError as exc:
+                # Serial dropped mid-approach (e.g. servo brownout knocked the ESP32
+                # off USB). Abort the approach and recover instead of crashing the
+                # whole pipeline — wake word/camera/STT keep working, and the robot
+                # path comes back on its own once the port re-enumerates.
+                print(f"[pipeline] approach aborted — robot serial lost: {exc}", file=sys.stderr)
+                self._start_detector()
+                self._state = _State.WAKE_LISTENING
+                self._face("idle")
+                return
             if result == ApproachResult.ARRIVED:
                 self._canned.play(random.choice(["greet_1", "greet_2", "greet_3"]))
                 self._face("listening")
