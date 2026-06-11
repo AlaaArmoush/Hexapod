@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Live tracking preview.
-Shows YOLO detections + EMA-smoothed crosshair for the closest person.
+Saves annotated frames to /tmp/hexapod_preview.jpg every ~5 frames.
+Prints detection info to stdout. Press Ctrl-C to quit.
 
   python3 scripts/tracking_preview.py           # try OAK-D, fall back to webcam
   python3 scripts/tracking_preview.py --webcam  # force webcam index 0
-
-Press 'q' to quit.
+  python3 scripts/tracking_preview.py --show    # open GUI window (needs display)
 """
 
 import argparse
@@ -78,6 +78,7 @@ def _grab_oak(provider) -> np.ndarray | None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--webcam", action="store_true", help="Force webcam instead of OAK-D")
+    parser.add_argument("--show", action="store_true", help="Open GUI window (requires display)")
     args = parser.parse_args()
 
     provider = None
@@ -95,10 +96,12 @@ def main() -> None:
 
     from camera.host_detector import HostDetector
     detector = HostDetector()
-    print(f"Detector: {detector._source}. Press 'q' to quit.")
+    mode = "GUI window" if args.show else "saving to /tmp/hexapod_preview.jpg"
+    print(f"Detector: {detector._source}. Output: {mode}. Ctrl-C to quit.")
 
     ema_x, ema_y = 0.0, 0.0
     has_target = False
+    frame_count = 0
 
     try:
         while True:
@@ -128,22 +131,28 @@ def main() -> None:
                     ema_y = EMA_ALPHA * best.frame_position_y + (1 - EMA_ALPHA) * ema_y
 
                 _draw_crosshair(annotated, ema_x, ema_y)
-                cv2.putText(
-                    annotated,
-                    f"EMA ({ema_x:+.2f}, {ema_y:+.2f})  area={best.bbox_area:.3f}  conf={best.confidence:.2f}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2,
-                )
+                label = f"EMA ({ema_x:+.2f}, {ema_y:+.2f})  area={best.bbox_area:.3f}  conf={best.confidence:.2f}"
+                cv2.putText(annotated, label, (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
+                print(f"\r[person] {label}", end="", flush=True)
             else:
                 has_target = False
                 cv2.putText(annotated, "No person", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2)
+                print("\r[no person]         ", end="", flush=True)
 
-            cv2.imshow("Hexapod Tracker Preview", annotated)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+            frame_count += 1
+            if args.show:
+                cv2.imshow("Hexapod Tracker Preview", annotated)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+            elif frame_count % 5 == 0:
+                cv2.imwrite("/tmp/hexapod_preview.jpg", annotated)
 
     finally:
-        cv2.destroyAllWindows()
+        print()
+        if args.show:
+            cv2.destroyAllWindows()
         if provider is not None:
             provider.stop()
         if cap is not None:
