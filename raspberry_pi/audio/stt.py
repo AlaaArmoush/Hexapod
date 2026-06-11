@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import os
 import sys
 import time
 from typing import Callable
@@ -7,6 +9,19 @@ from typing import Callable
 import numpy as np
 
 from . import config
+
+
+@contextlib.contextmanager
+def _suppress_fd2():
+    fd = os.open(os.devnull, os.O_WRONLY)
+    saved = os.dup(2)
+    os.dup2(fd, 2)
+    try:
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(fd)
 
 
 class MoonshineSTT:
@@ -23,10 +38,11 @@ class MoonshineSTT:
                 if text:
                     on_final(text)
 
-        self._t = Transcriber(
-            model_path=str(config.MOONSHINE_MODEL_PATH),
-            model_arch=ModelArch(config.MOONSHINE_MODEL_ARCH),
-        )
+        with _suppress_fd2():
+            self._t = Transcriber(
+                model_path=str(config.MOONSHINE_MODEL_PATH),
+                model_arch=ModelArch(config.MOONSHINE_MODEL_ARCH),
+            )
         self._t.add_listener(_Listener())
 
     def start(self) -> None:

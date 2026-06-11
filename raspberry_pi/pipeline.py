@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import warnings
-os.environ.setdefault("ORT_LOGGING_LEVEL", "3")      # suppress onnxruntime C++ info/warnings
+os.environ["ORT_LOGGING_LEVEL"] = "4"                 # FATAL only — suppress C++ warnings/errors
 warnings.filterwarnings("ignore", category=UserWarning, module="onnxruntime")
 
 import argparse

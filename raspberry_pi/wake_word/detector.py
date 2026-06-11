@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import os
 import queue
 import sys
 import threading
@@ -30,6 +32,25 @@ AUDIO_DEVICE = "hw:0,1"
 WakeCallback = Callable[[str, float, str], None]
 
 
+@contextlib.contextmanager
+def _suppress_fd2():
+    """Redirect file-descriptor 2 (C-level stderr) to /dev/null.
+
+    Python-level warnings.filterwarnings and ORT_LOGGING_LEVEL don't reach
+    messages printed by onnxruntime's C++ layer before session creation, so
+    we suppress them at the fd level around model initialisation only.
+    """
+    fd = os.open(os.devnull, os.O_WRONLY)
+    saved = os.dup(2)
+    os.dup2(fd, 2)
+    try:
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(fd)
+
+
 class WakeWordDetector:
     def __init__(
         self,
@@ -39,56 +60,58 @@ class WakeWordDetector:
         device: str | int | None = AUDIO_DEVICE,
         debug: bool = False,
     ) -> None:
-        from openwakeword.model import Model
-
-        self._model = Model(wakeword_model_paths=[str(model_path)])
+        with _suppress_fd2():
+            from openwakeword.model import Model
+            self._model = Model(wakeword_model_paths=[str(model_path)])
         self._on_wakeword = on_wakeword
         self._threshold = threshold
         self._device = device
         self._debug = debug
         self._stream: sd.InputStream | None = None
-        self._lock = threading.Lock()
-        self._buffer = np.array([], dtype=np.int16)
         self._peak: float = 0.0
 
         from raspberry_pi.wake_word.direction import RealDirectionEstimator
         self._direction_est = RealDirectionEstimator()
+        # Queue carries raw 48 kHz float32 chunks — resampling happens in the worker
+        # thread so the audio callback stays as fast as possible (prevents input overflow).
         self._chunk_queue: queue.Queue = queue.Queue(maxsize=20)
         self._worker_thread: threading.Thread | None = None
+        self._buf16k = np.array([], dtype=np.int16)
+        self._buf_lock = threading.Lock()
 
     def _audio_callback(self, indata: np.ndarray, _frames: int, _time_info: object, status: object) -> None:
-        if status:
-            print(f"[detector] audio status: {status}")
+        # Keep this callback minimal — any heavy work here causes input overflow.
         self._direction_est.update(indata)
-        ch0 = indata[:, 0].astype(np.float32) * WAKEWORD_INPUT_GAIN
-        ch0_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
-        np.clip(ch0_16k, -1.0, 1.0, out=ch0_16k)   # prevent wrap-around on loud peaks
-        pcm = (ch0_16k * 32767).astype(np.int16)
-        # Split into OWW-sized chunks and enqueue — never block the audio thread.
-        with self._lock:
-            self._buffer = np.concatenate([self._buffer, pcm])
-            while len(self._buffer) >= OWW_CHUNK_FRAMES:
-                chunk = self._buffer[:OWW_CHUNK_FRAMES]
-                self._buffer = self._buffer[OWW_CHUNK_FRAMES:]
-                try:
-                    self._chunk_queue.put_nowait(chunk)
-                except queue.Full:
-                    pass  # drop oldest to keep latency low
+        try:
+            # Copy raw 48 kHz CH0 into the worker queue; resampling done there.
+            self._chunk_queue.put_nowait(indata[:, 0].copy())
+        except queue.Full:
+            pass  # drop the chunk to keep latency low; better than blocking
 
     def _worker(self) -> None:
         while True:
-            chunk = self._chunk_queue.get()
-            if chunk is None:
+            raw = self._chunk_queue.get()
+            if raw is None:
                 break
-            scores = self._model.predict(chunk)
-            for model_name, score in scores.items():
-                if self._debug and score > self._peak:
-                    self._peak = score
-                    print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
-                if score >= self._threshold:
-                    direction = self._direction_est.estimate()
-                    self._direction_est.reset()
-                    self._on_wakeword(model_name, float(score), direction)
+            # Resample 48 kHz → 16 kHz and apply gain here, off the audio thread.
+            ch0 = raw.astype(np.float32) * WAKEWORD_INPUT_GAIN
+            ch0_16k = resample_poly(ch0, up=1, down=_DOWNSAMPLE).astype(np.float32)
+            np.clip(ch0_16k, -1.0, 1.0, out=ch0_16k)
+            pcm = (ch0_16k * 32767).astype(np.int16)
+            with self._buf_lock:
+                self._buf16k = np.concatenate([self._buf16k, pcm])
+                while len(self._buf16k) >= OWW_CHUNK_FRAMES:
+                    chunk = self._buf16k[:OWW_CHUNK_FRAMES]
+                    self._buf16k = self._buf16k[OWW_CHUNK_FRAMES:]
+                    scores = self._model.predict(chunk)
+                    for model_name, score in scores.items():
+                        if self._debug and score > self._peak:
+                            self._peak = score
+                            print(f"\r[detector] peak score={score:.4f} (threshold={self._threshold})", end="", file=sys.stderr)
+                        if score >= self._threshold:
+                            direction = self._direction_est.estimate()
+                            self._direction_est.reset()
+                            self._on_wakeword(model_name, float(score), direction)
 
     def start(self) -> None:
         self._worker_thread = threading.Thread(target=self._worker, daemon=True)
