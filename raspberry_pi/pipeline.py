@@ -122,12 +122,28 @@ class VoicePipeline:
         "front_right": ("right", 30),
         "right": ("right", 60),
     }
-    # Pan positions scanned (order) when the wake-direction guess doesn't find anyone.
-    _SCAN_PAN_ORDER = ("center", "front_left", "front_right", "left", "right")
+    _PAN_OFFSET_BY_POS = {
+        "left": 75,
+        "front_left": 30,
+        "center": 0,
+        "front_right": -30,
+        "right": -75,
+    }
+    _SWEEP_OFFSETS_BY_DIRECTION = {
+        "left": (75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75),
+        "right": (-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75),
+        "front": (75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75),
+        "center": (75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75),
+        "back": (75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75),
+    }
+    _SWEEP_STEP_SETTLE_S = 0.25
 
     def _handle_wakeword(self, direction: str) -> None:
         print(f"[pipeline] wake word (direction={direction!r})", file=sys.stderr)
         self._stop_detector()
+        if self._tracker is not None:
+            self._tracker.reset()
+            self._tracker.prefer_direction(direction)
         self._dispatch_direction(direction)
 
         pan_pos = None
@@ -139,7 +155,7 @@ class VoicePipeline:
             else:
                 # The mic direction is only a coarse guess (and often wrong), so scan the
                 # camera across pan positions to actually find the person.
-                pan_pos = self._scan_for_person()
+                pan_pos = self._scan_for_person(direction)
 
         if pan_pos is not None:
             self._greet_and_approach(pan_pos)
@@ -155,9 +171,9 @@ class VoicePipeline:
         from bridge.robot_commands import build_camera_center
         from camera.approach import ApproachController, ApproachResult
 
-        # Centre the camera so the approach runs with a straight-ahead view.
-        # Body alignment is skipped here — ApproachController corrects lateral offset
-        # via rotation during approach, which looks more natural than a pre-turn.
+        # Turn the body toward the pan angle where the caller was found, then centre
+        # the camera so approach starts from a straight-ahead view of that person.
+        self._align_body_to_pan(pan_pos)
         if self._tracker is not None:
             self._tracker.reset()
         try:
@@ -189,6 +205,7 @@ class VoicePipeline:
             self._face("idle")
             return
         if result == ApproachResult.ARRIVED:
+            self._look_up_for_conversation()
             self._canned.play(random.choice(["greet_1", "greet_2", "greet_3"]))
             self._face("listening")
             self._start_stt()
@@ -217,41 +234,64 @@ class VoicePipeline:
         print(f"[pipeline] turning body {rot_dir} {degrees}° to face person", file=sys.stderr)
         try:
             self._cmd_fn(build_rotate(dir=rot_dir, degrees=degrees))
+            time.sleep(self._body_turn_wait_s(degrees))
             return True
         except Exception as exc:
             print(f"[pipeline] body turn failed (ignored): {exc}", file=sys.stderr)
             return False
 
-    def _scan_for_person(self) -> str | None:
-        """Pan the camera across positions and return the one with the best person
-        detection, or None if nobody is found. Uses fresh per-frame detection (not the
-        smoothed tracker target, which lingers for ~2s and would leak across positions).
+    def _look_up_for_conversation(self) -> None:
+        if self._cmd_fn is None:
+            return
+        from bridge.robot_commands import build_look
+        try:
+            self._cmd_fn(build_look(dir="up", persistent=True))
+        except Exception as exc:
+            print(f"[pipeline] look-up command failed (ignored): {exc}", file=sys.stderr)
+
+    @staticmethod
+    def _body_turn_wait_s(degrees: int) -> float:
+        return max(0.8, (degrees / 30.0) * 1.2)
+
+    def _scan_for_person(self, direction: str = "front") -> str | None:
+        """Slowly sweep the camera and stop at the first person detection.
+
+        Uses fresh per-frame detection, not the smoothed tracker target, which
+        lingers for ~2s and would leak across sweep offsets.
         """
         from bridge.robot_commands import build_camera_center, build_camera_pan
-        print("[pipeline] no one at the guessed direction — scanning", file=sys.stderr)
-        best_pos = None
-        best_conf = 0.0
-        for pos in self._SCAN_PAN_ORDER:
+        print("[pipeline] no one at the guessed direction — sweeping camera", file=sys.stderr)
+        offsets = self._SWEEP_OFFSETS_BY_DIRECTION.get(direction, self._SWEEP_OFFSETS_BY_DIRECTION["front"])
+        for offset in offsets:
             try:
-                self._cmd_fn(build_camera_pan(pos=pos))
+                self._cmd_fn(build_camera_pan(pos="center", offset=offset))
             except Exception:
                 continue
-            time.sleep(0.5)  # camera servo move + a fresh frame
+            time.sleep(self._SWEEP_STEP_SETTLE_S)
             frame = self._tracker.provider.grab_frame()
             if frame is None:
                 continue
             result = self._tracker.detector.detect(frame, target_label="person")
             if result is not None and result.detected:
-                conf = max(d.confidence for d in result.detections)
-                if conf > best_conf:
-                    best_conf = conf
-                    best_pos = pos
-        if best_pos is None:
-            try:
-                self._cmd_fn(build_camera_center())
-            except Exception:
-                pass
-        return best_pos
+                best = self._tracker.pick_for_direction(result.detections, direction)
+                pos = self._nearest_pan_pos(offset)
+                print(
+                    f"[pipeline] person seen during sweep at offset={offset:+d} "
+                    f"(x={best.frame_position_x:+.2f}) → {pos}",
+                    file=sys.stderr,
+                )
+                return pos
+        try:
+            self._cmd_fn(build_camera_center())
+        except Exception:
+            pass
+        return None
+
+    def _nearest_pan_pos(self, offset: int) -> str:
+        return min(
+            self._PAN_OFFSET_BY_POS,
+            key=lambda pos: abs(self._PAN_OFFSET_BY_POS[pos] - offset),
+        )
 
     def _acquire_person(self, timeout_s: float):
         """Poll the tracker briefly so it can lock on after the camera pans.
@@ -274,6 +314,7 @@ class VoicePipeline:
         try:
             if direction == "back":
                 self._cmd_fn(build_rotate(dir="left", degrees=180))
+                time.sleep(self._body_turn_wait_s(180))
                 self._cmd_fn(build_camera_pan(pos="center"))
             else:
                 pan_pos = direction if direction not in ("front", "center") else "center"

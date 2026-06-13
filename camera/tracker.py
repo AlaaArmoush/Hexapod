@@ -28,6 +28,7 @@ class PersonTracker:
         self._lock = threading.Lock()
         self._target: TrackedPerson | None = None
         self._last_seen_ms: int = 0
+        self._preferred_direction: str | None = None
         self._thread: threading.Thread | None = None
         self._running = False
 
@@ -53,6 +54,18 @@ class PersonTracker:
         with self._lock:
             self._target = None
             self._last_seen_ms = 0
+
+    def prefer_direction(self, direction: str | None) -> None:
+        """Bias multi-person selection toward the wake-word direction.
+
+        Direction is deliberately coarse because the mic array only provides a
+        cardinal estimate. It is still enough to avoid "closest person wins" when
+        someone on the left/right side called the robot.
+        """
+        if direction not in {"left", "right", "front", "center", "back", None}:
+            direction = None
+        with self._lock:
+            self._preferred_direction = direction
 
     @property
     def target(self) -> TrackedPerson | None:
@@ -91,7 +104,7 @@ class PersonTracker:
                     self._target = None
             return
 
-        best = self._pick_closest(result.detections)
+        best = self._pick_target(result.detections)
         distance_m = best.distance_m if best.distance_m is not None else _sample_depth(depth, best.frame_position_x, best.frame_position_y)
 
         with self._lock:
@@ -122,6 +135,40 @@ class PersonTracker:
         if with_depth:
             return min(with_depth, key=lambda d: d.distance_m)
         return max(detections, key=lambda d: d.bbox_area)
+
+    def _pick_target(self, detections):
+        with self._lock:
+            direction = self._preferred_direction
+        return self.pick_for_direction(detections, direction)
+
+    @classmethod
+    def pick_for_direction(cls, detections, direction: str | None):
+        if direction in {"left", "right"}:
+            side = -1.0 if direction == "left" else 1.0
+            return max(
+                detections,
+                key=lambda d: (
+                    side * d.frame_position_x,
+                    cls._closeness_score(d),
+                    d.confidence,
+                ),
+            )
+        if direction in {"front", "center", "back"}:
+            return max(
+                detections,
+                key=lambda d: (
+                    -abs(d.frame_position_x),
+                    cls._closeness_score(d),
+                    d.confidence,
+                ),
+            )
+        return cls._pick_closest(detections)
+
+    @staticmethod
+    def _closeness_score(detection) -> float:
+        if detection.distance_m is not None:
+            return -float(detection.distance_m)
+        return float(detection.bbox_area)
 
 
 def _sample_depth(depth_frame, norm_x: float, norm_y: float) -> float | None:

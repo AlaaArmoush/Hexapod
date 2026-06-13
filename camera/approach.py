@@ -14,6 +14,7 @@ class ApproachResult(Enum):
 
 class ApproachController:
     CLOSE_ENOUGH_M = 0.9      # metres — person is close enough to greet
+    CLOSE_ENOUGH_AREA = 0.25  # normalized bbox area — fallback when depth is absent
     CENTER_THRESHOLD = 0.5    # |frame_position_x| below this counts as centred.
     # Kept high because the minimum firmware rotation is 30°, which overshoots
     # small corrections and causes oscillation. Only correct big offsets.
@@ -47,8 +48,11 @@ class ApproachController:
             if t.distance_m is not None and t.distance_m <= self.CLOSE_ENOUGH_M:
                 print(f"[approach] → ARRIVED ({t.distance_m:.2f}m <= {self.CLOSE_ENOUGH_M}m)", flush=True)
                 return ApproachResult.ARRIVED
+            if t.distance_m is None and t.bbox_area >= self.CLOSE_ENOUGH_AREA:
+                print(f"[approach] → ARRIVED (area {t.bbox_area:.2f} >= {self.CLOSE_ENOUGH_AREA:.2f})", flush=True)
+                return ApproachResult.ARRIVED
 
-            if abs(t.frame_position_x) > self.CENTER_THRESHOLD:
+            if abs(t.frame_position_x) >= self.CENTER_THRESHOLD:
                 direction = "left" if t.frame_position_x < 0 else "right"
                 print(f"[approach] rotating {direction} (x={t.frame_position_x:+.2f})", flush=True)
                 self._cmd_fn(build_rotate(dir=direction, cycles=1))
@@ -60,4 +64,3 @@ class ApproachController:
 
         print("[approach] → TIMEOUT", flush=True)
         return ApproachResult.TIMEOUT
-

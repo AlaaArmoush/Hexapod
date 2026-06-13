@@ -31,6 +31,9 @@ class FakeProvider:
             self._done = True
             return None
 
+    def grab_depth(self):
+        return None
+
 
 class FakeDetector:
     def __init__(self, results):
@@ -97,6 +100,18 @@ class TrackerTests(unittest.TestCase):
         large = _det("person", 0.9, 0.5, 0.0, area=0.4)
         best = PersonTracker._pick_closest([small, large])
         self.assertAlmostEqual(best.bbox_area, 0.4)
+
+    def test_direction_hint_prefers_right_side_over_closest_person(self):
+        front_close = _det("person", 0.9, 0.0, 0.0, area=0.8, dist=0.8)
+        right_caller = _det("person", 0.8, 0.7, 0.0, area=0.1, dist=3.0)
+        best = PersonTracker.pick_for_direction([front_close, right_caller], "right")
+        self.assertEqual(best.frame_position_x, 0.7)
+
+    def test_direction_hint_prefers_left_side_over_closest_person(self):
+        front_close = _det("person", 0.9, 0.0, 0.0, area=0.8, dist=0.8)
+        left_caller = _det("person", 0.8, -0.7, 0.0, area=0.1, dist=3.0)
+        best = PersonTracker.pick_for_direction([front_close, left_caller], "left")
+        self.assertEqual(best.frame_position_x, -0.7)
 
     def test_lost_timeout_clears_target(self):
         tracker = self._make_tracker(
