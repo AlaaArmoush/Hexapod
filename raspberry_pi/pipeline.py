@@ -47,6 +47,7 @@ class VoicePipeline:
         self._stt = None
         self._detector = None
         self._spoke_at: float = 0.0
+        self._conversation_look_up_active = False
 
     _POST_SPEAK_COOLDOWN = 1.2
     # Info-tool faces worth keeping on screen briefly after speaking so the user can
@@ -80,6 +81,7 @@ class VoicePipeline:
             self._state = _State.THINKING
             if self._stt is not None:
                 self._stt.pause()
+            self._stand_after_conversation_stt()
             self._queue.put_nowait(("transcript", text))
 
     def _start_stt(self) -> None:
@@ -205,9 +207,9 @@ class VoicePipeline:
             self._face("idle")
             return
         if result == ApproachResult.ARRIVED:
-            self._look_up_for_conversation()
             self._canned.play(random.choice(["greet_1", "greet_2", "greet_3"]))
             self._face("listening")
+            self._look_up_for_conversation()
             self._start_stt()
             print("[pipeline] ARRIVED — LISTENING", file=sys.stderr)
             return
@@ -246,8 +248,19 @@ class VoicePipeline:
         from bridge.robot_commands import build_look
         try:
             self._cmd_fn(build_look(dir="up", persistent=True))
+            self._conversation_look_up_active = True
         except Exception as exc:
             print(f"[pipeline] look-up command failed (ignored): {exc}", file=sys.stderr)
+
+    def _stand_after_conversation_stt(self) -> None:
+        if not self._conversation_look_up_active or self._cmd_fn is None:
+            return
+        from bridge.robot_commands import build_look
+        try:
+            self._cmd_fn(build_look(dir="center"))
+            self._conversation_look_up_active = False
+        except Exception as exc:
+            print(f"[pipeline] look-center command failed (ignored): {exc}", file=sys.stderr)
 
     @staticmethod
     def _body_turn_wait_s(degrees: int) -> float:
