@@ -1,5 +1,7 @@
 # An Autonomous Hexapod
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/951de300-85fa-42f6-9595-fd80dc6b30bf" alt="Hexapod standing" width="66%"/>
+</p>
 An 18-DOF hexapod robot with a conversational AI brain. An ESP32 handles real-time inverse kinematics, tripod gait, and animated OLED expressions. A Raspberry Pi 5 runs wake-word detection, speech-to-text, a local LLM (Gemma 4), text-to-speech, and stereo-vision person tracking — all without cloud services.
 
 ---
@@ -79,7 +81,7 @@ pio device monitor                # open serial monitor
 pio run --target upload && pio device monitor
 ```
 
-### Python (Raspberry Pi / laptop)
+### Python (Raspberry Pi)
 
 ```bash
 python3 -m venv .venv
@@ -176,7 +178,7 @@ python3 -m pytest tests/test_agent_loop.py -v
 
 | Feature | How it works |
 |---------|-------------|
-| 8-directional walking | Tripod gait with phase-based foot trajectories and IK |
+| 8‑directional walking | Tripod gait with phase‑based foot trajectories and IK.<br/><br/><p align="center"><img src="https://github.com/user-attachments/assets/b0202339-d1bd-444f-bea1-a0412e114254" alt="Hexapod walking gait" width="90%"/></p>|
 | Body rotation | All legs drive in a circular arc around the body centre |
 | Gestures | wave, lean, nod, shake, look, blink |
 | 38 OLED face states | Automatic face–motion coupling (`syncFaceToMode`) |
